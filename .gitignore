@@ -1,5 +1,4 @@
 node_modules
-dist
 usage_log.jsonl
 *.log
 .DS_Store
