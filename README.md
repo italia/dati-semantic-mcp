@@ -31,28 +31,36 @@ Il server espone tre livelli di stumenti:
 ## Installazione & Uso
 
 ### 1. Tramite NPX (Senza installazione permanente)
-Puoi eseguire il server direttamente con `npx` senza clonare il repo:
-
 ```bash
 npx schema-gov-it-mcp
 ```
 
-### 2. Configurazione con Claude Code
-Puoi aggiungerlo direttamente alla configurazione di Claude via `npx`:
+### 2. Installazione da GitHub (Senza NPM Registry)
+Puoi installare globalmente direttamente dal repository:
 
+```bash
+npm install -g git+https://github.com/mfortini/schema-gov-it-mcp.git
+```
+Poi usa `schema-gov-it-mcp` come comando.
+
+### 3. Configurazione per AI Agent
+#### Claude Code / Desktop
 ```bash
 claude mcp add schema-gov-it -- npx schema-gov-it-mcp
 ```
 
-### 3. Installazione Locale (Sviluppo)
-Se vuoi modificare il codice:
+#### ChatGPT / OpenAI
+Al momento ChatGPT non supporta MCP nativamente tramite una CLI ufficiale semplice come Claude. Tuttavia:
+- **ChatGPT Web (Developer Mode)**: Puoi importare il server come "Connettore" se hai accesso alle funzionalità developer.
+- **OpenAI API / Custom Client**: Puoi usare client compatibili MCP della community (es. `mcp-cli` o `semantic-kernel` con bridge MCP).
+- **Consiglio**: Se usi ChatGPT via web, chiedi di creare azioni GPT (GPT Actions) basate sulle specifiche del server, ma MCP richiede un bridge locale-remoto.
 
+### 4. Installazione Locale (Sviluppo)
 ```bash
 git clone <repo-url>
 cd schema-gov-it-mcp
 npm install
 npm run build
-# Esegui localmente
 node dist/index.js
 ```
 
