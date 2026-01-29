@@ -18,7 +18,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YOUR_USERNAME/schema-gov-it-mcp.git"
+    "url": "git+https://github.com/mfortini/schema-gov-it-mcp.git"
   },
   "keywords": [
     "mcp",
