@@ -1,17 +1,30 @@
 {
-  "name": "mcp",
+  "name": "schema-gov-it-mcp",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "MCP Server for schema.gov.it SPARQL endpoint",
+  "main": "dist/index.js",
+  "bin": {
+    "schema-gov-it-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },
-  "keywords": [],
+  "keywords": [
+    "mcp",
+    "sparql",
+    "schema.gov.it",
+    "ai",
+    "semantic-web"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.3",
     "@types/node": "^25.1.0",

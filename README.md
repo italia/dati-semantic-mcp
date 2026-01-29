@@ -28,25 +28,33 @@ Il server espone tre livelli di stumenti:
 
 ---
 
-## Installazione
+## Installazione & Uso
 
-Di seguito le istruzioni per installare il progetto. Assicurati di avere **Node.js 18+** installato.
-
-### 1. Installazione Dipendenze
-Per installare le librerie necessarie (il comando "npm install" che chiedevi):
+### 1. Tramite NPX (Senza installazione permanente)
+Puoi eseguire il server direttamente con `npx` senza clonare il repo:
 
 ```bash
+npx schema-gov-it-mcp
+```
+
+### 2. Configurazione con Claude Code
+Puoi aggiungerlo direttamente alla configurazione di Claude via `npx`:
+
+```bash
+claude mcp add schema-gov-it -- npx schema-gov-it-mcp
+```
+
+### 3. Installazione Locale (Sviluppo)
+Se vuoi modificare il codice:
+
+```bash
+git clone <repo-url>
+cd schema-gov-it-mcp
 npm install
-```
-
-### 2. Build del Progetto
-Il codice è scritto in TypeScript e deve essere compilato:
-
-```bash
 npm run build
+# Esegui localmente
+node dist/index.js
 ```
-
-Questo creerà una cartella `dist/` con il codice eseguibile.
 
 ---
 
