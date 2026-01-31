@@ -8,22 +8,30 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 Il server espone tre livelli di stumenti:
 
-### 1. Core SPARQL (Base)
-*   `query_sparql`: Esegue query SPARQL arbitrarie (RAW) verso l'endpoint.
-*   `explore_catalog`: Elenca i grafi/ontologie disponibili.
+### 1. Modello Dati (Ontologie)
+*   `list_ontologies`: Elenca le ontologie disponibili (es. Città, Servizi Pubblici).
+*   `explore_ontology`: Mostra le Classi e Proprietà definite in una specifica ontologia.
 
-### 2. Analisi Semantica (Intermedio)
-*   `check_coverage`: Analizza quanto è usata una classe o proprietà nel dataset.
-*   `check_quality`: Identifica problemi comuni (es. mancanza di etichette/label).
-*   `check_overlaps`: Trova duplicati potenziali o mapping espliciti (`owl:sameAs`).
+### 2. Vocabolari Controllati (Reference Data)
+*   `list_vocabularies`: Elenca i vocabolari disponibili (es. ATECO, INAIL).
+*   `search_in_vocabulary`: Cerca codici e concetti all'interno di un vocabolario specifico.
 
-### 3. Intelligence (Avanzato)
+### 3. Cataloghi e Dataset (Dati)
+*   `list_datasets`: Elenca i dataset DCAT-AP_IT disponibili.
+*   `explore_dataset`: Mostra i dettagli e le distribuzioni (CSV, RDF) di un dataset.
+*   `preview_distribution`: Scarica e mostra le prime 10 righe di un CSV/JSON per un'anteprima rapida dei dati.
+*   `search_city`: Ricerca mirata sui Comuni (es. trova Provincia e Regione per un Comune).
+
+### 4. Evoluzione e Miglioramento (Meta)
+*   `suggest_new_tools`: Analizza i log delle tue query RAW e suggerisce nuovi tool specializzati in base al tuo utilizzo reale.
+
+### 5. Intelligence (Avanzato)
 *   `search_concepts`: **Ricerca fuzzy**. Trova concetti (es. "Scuola") senza conoscere l'URI esatto.
 *   `inspect_concept`: **Deep Dive**. Ottiene in un colpo solo definizione, gerarchia, usage stats e vicini di un concetto.
 *   `find_relations`: **Pathfinding**. Scopre come due concetti sono collegati.
 *   `suggest_improvements`: Euristiche per trovare anomalie strutturali nell'ontologia.
 
-### 4. Meta-Ottimizzazione
+### 5. Meta-Ottimizzazione
 *   `analyze_usage`: Analizza i log interni per dirti quali query fai più spesso e quali falliscono.
 
 ---
@@ -60,7 +68,7 @@ Al momento ChatGPT non supporta MCP nativamente tramite una CLI ufficiale sempli
 git clone <repo-url>
 cd schema-gov-it-mcp
 npm install
-npm run build
+# npm run build (Opzionale: il codice compilato /dist è già incluso)
 node dist/index.js
 ```
 

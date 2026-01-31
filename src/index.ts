@@ -340,9 +340,252 @@ server.tool(
 
 
 // ------------------------------------------------------------------
-// INTELLIGENT TOOLS (Level 2)
+// 1. MODEL STRUCTURE (Ontologies)
 // ------------------------------------------------------------------
 
+server.tool(
+  "list_ontologies",
+  "List available Ontologies (Data Models) and their titles.",
+  {
+    limit: z.number().optional().default(50),
+  },
+  async ({ limit }) => {
+    const query = `
+      SELECT DISTINCT ?ont ?label
+      WHERE {
+        ?ont a owl:Ontology .
+        OPTIONAL { ?ont rdfs:label|dct:title ?label }
+      }
+      ORDER BY ?label
+      LIMIT ${limit}
+    `;
+
+    try {
+      const result = await executeSparql(query);
+      await logUsage("list_ontologies", { limit }, "Success");
+      return {
+        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
+      };
+    } catch (error: any) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "explore_ontology",
+  "List Classes and Properties defined in a specific Ontology.",
+  {
+    ontologyUri: z.string().describe("The URI of the Ontology (from list_ontologies)"),
+  },
+  async ({ ontologyUri }) => {
+    // We assume classes/props are linked via rdfs:isDefinedBy OR have the ontology URI as prefix (heuristic)
+    // A more reliable check for schema.gov.it is looking for things defined IN that graph or with that namespace.
+    // Given the structure, we'll try filtering by namespace match primarily.
+
+    // Simplification: Check for Classes and Properties that validly start with the ontology URI
+    // but often ontologies have hash or slash.
+
+    const query = `
+      SELECT DISTINCT ?type ?item ?label
+      WHERE {
+        VALUES ?type { owl:Class owl:ObjectProperty owl:DatatypeProperty }
+        ?item a ?type .
+        OPTIONAL { ?item rdfs:label ?label }
+        
+        # Heuristic: Filter where item URI starts with Ontology URI (common convention)
+        FILTER(STRSTARTS(STR(?item), "${ontologyUri}"))
+      }
+      ORDER BY ?type ?item
+      LIMIT 200
+    `;
+
+    try {
+      const result = await executeSparql(query);
+      await logUsage("explore_ontology", { ontologyUri }, "Success");
+      return {
+        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
+      };
+    } catch (error: any) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+
+// ------------------------------------------------------------------
+// 2. CONTROLLED VOCABULARIES (Codes & Values)
+// ------------------------------------------------------------------
+
+// High-level tool: List Controlled Vocabularies
+server.tool(
+  "list_vocabularies",
+  "List available Controlled Vocabularies (ConceptSchemes) and their instance counts.",
+  {
+    limit: z.number().optional().default(20),
+  },
+  async ({ limit }) => {
+    const query = `
+      SELECT DISTINCT ?scheme ?label (COUNT(?c) AS ?count)
+      WHERE {
+        ?scheme a skos:ConceptScheme .
+        OPTIONAL { ?scheme rdfs:label|dct:title ?label }
+        OPTIONAL { ?c skos:inScheme ?scheme }
+      }
+      GROUP BY ?scheme ?label
+      ORDER BY DESC(?count)
+      LIMIT ${limit}
+    `;
+
+    try {
+      const result = await executeSparql(query);
+      await logUsage("list_vocabularies", { limit }, "Success");
+      return {
+        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
+      };
+    } catch (error: any) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// High-level tool: Search inside a Vocabulary
+server.tool(
+  "search_in_vocabulary",
+  "Search for concepts within a specific Controlled Vocabulary (ConceptScheme).",
+  {
+    schemeUri: z.string().describe("The URI of the ConceptScheme (from list_vocabularies)"),
+    keyword: z.string().describe("The search keyword"),
+    limit: z.number().optional().default(20),
+  },
+  async ({ schemeUri, keyword, limit }) => {
+    const query = `
+      SELECT DISTINCT ?concept ?label ?code
+      WHERE {
+        ?concept skos:inScheme <${schemeUri}> .
+        ?concept rdfs:label|skos:prefLabel ?label .
+        OPTIONAL { ?concept skos:notation|dct:identifier ?code }
+        FILTER(REGEX(STR(?label), "${keyword}", "i"))
+      }
+      ORDER BY ?label
+      LIMIT ${limit}
+    `;
+
+    try {
+      const result = await executeSparql(query);
+      await logUsage("search_in_vocabulary", { schemeUri, keyword, limit }, "Success");
+      return {
+        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
+      };
+    } catch (error: any) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ------------------------------------------------------------------
+// 3. DATA & CATALOGS (Datasets)
+// ------------------------------------------------------------------
+
+server.tool(
+  "list_datasets",
+  "List available Datasets (dcatapit:Dataset) in the catalog.",
+  {
+    limit: z.number().optional().default(20),
+    offset: z.number().optional().default(0),
+  },
+  async ({ limit, offset }) => {
+    const query = `
+      SELECT DISTINCT ?dataset ?label
+      WHERE {
+        ?dataset a <http://dati.gov.it/onto/dcatapit#Dataset> .
+        OPTIONAL { ?dataset dct:title ?label }
+      }
+      ORDER BY ?label
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `;
+
+    try {
+      const result = await executeSparql(query);
+      await logUsage("list_datasets", { limit, offset }, "Success");
+      return {
+        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
+      };
+    } catch (error: any) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "explore_dataset",
+  "Get details of a specific Dataset (Description, Distributions, Themes).",
+  {
+    datasetUri: z.string().describe("The URI of the Dataset"),
+  },
+  async ({ datasetUri }) => {
+    const query = `
+      SELECT ?p ?o
+      WHERE {
+        <${datasetUri}> ?p ?o .
+        FILTER (ISLITERAL(?o) || (ISURI(?o) && EXISTS { ?o a <http://dati.gov.it/onto/dcatapit#Distribution> }))
+      }
+      LIMIT 100
+    `;
+
+    // Also fetch distributions explicitly if needed, but the above query might catch them if linked directly.
+    // Let's do a specific query for distributions as well.
+    const distQuery = `
+        SELECT ?dist ?format ?url
+        WHERE {
+            ?dist a <http://dati.gov.it/onto/dcatapit#Distribution> .
+            { <${datasetUri}> dcat:distribution ?dist } UNION { ?dist isDistributionOf <${datasetUri}> } .
+            OPTIONAL { ?dist dct:format ?format }
+            OPTIONAL { ?dist dcat:downloadURL ?url }
+        }
+        LIMIT 20
+    `;
+
+    try {
+      const details = await executeSparql(query);
+      const distributions = await executeSparql(distQuery);
+
+      await logUsage("explore_dataset", { datasetUri }, "Success");
+      return {
+        content: [{
+          type: "text", text: JSON.stringify({
+            metadata: compressSparqlResult(details),
+            distributions: compressSparqlResult(distributions)
+          })
+        }],
+      };
+    } catch (error: any) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ------------------------------------------------------------------
+// 4. INTELLIGENT TOOLS (Advanced)
 // Smart Tool: Search Concepts
 server.tool(
   "search_concepts",
@@ -535,6 +778,123 @@ server.tool(
 
 
 
+// ------------------------------------------------------------------
+// 5. META-TOOLS (Continuous Improvement)
+// ------------------------------------------------------------------
+
+server.tool(
+  "preview_distribution",
+  "Download and preview the first 10 rows of a distribution (CSV/JSON only). Use this to see actual data.",
+  {
+    url: z.string().describe("The download URL of the distribution"),
+  },
+  async ({ url }) => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch distribution: ${response.status} ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      const text = await response.text();
+
+      let preview = "";
+
+      if (contentType.includes("json") || url.endsWith(".json")) {
+        try {
+          const json = JSON.parse(text);
+          const array = Array.isArray(json) ? json : (json.results || json.data || [json]);
+          preview = JSON.stringify(array.slice(0, 10), null, 2);
+        } catch (e) {
+          preview = text.slice(0, 2000) + "\n... (truncated)";
+        }
+      } else {
+        // Assume CSV or text
+        const lines = text.split("\n").slice(0, 15); // Get a few more to handle headers
+        preview = lines.join("\n");
+      }
+
+      await logUsage("preview_distribution", { url }, "Success");
+      return {
+        content: [{ type: "text", text: `Preview of ${url}:\n\n${preview}` }],
+      };
+    } catch (error: any) {
+      return {
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "suggest_new_tools",
+  "Analyze usage logs to suggest new potential tools based on frequent RAW queries.",
+  {},
+  async () => {
+    if (!existsSync(LOG_FILE)) {
+      return { content: [{ type: "text", text: "No usage logs found yet." }] };
+    }
+
+    try {
+      const data = await readFile(LOG_FILE, "utf-8");
+      const lines = data.trim().split("\n");
+
+      // Analyze RAW queries to find frequent patterns
+      const rawQueries: string[] = [];
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const entry = JSON.parse(line);
+          if (entry.tool === "query_sparql" && entry.args.query) {
+            rawQueries.push(entry.args.query);
+          }
+        } catch (e) { }
+      }
+
+      // Heuristic: Check for common patterns in RAW queries (e.g. "?s a <URI>")
+      const typeCounts: Record<string, number> = {};
+      const regexType = /\ba\s+<([^>]+)>/g;
+
+      for (const q of rawQueries) {
+        let match;
+        while ((match = regexType.exec(q)) !== null) {
+          const typeUri = match[1];
+          typeCounts[typeUri] = (typeCounts[typeUri] || 0) + 1;
+        }
+      }
+
+      const suggestions = Object.entries(typeCounts)
+        .filter(([_, count]) => count >= 2) // Threshold
+        .map(([uri, count]) => ({
+          type: "New Tool Recommendation",
+          reason: `You frequently query for instances of <${uri}> (${count} times).`, // Escaped < and > for markdown safety in my mind, but logic is clean
+          suggestion: `Consider adding a specialized tool: list_${uri.split('/').pop()?.toLowerCase()}`
+        }));
+
+      if (suggestions.length === 0) {
+        return { content: [{ type: "text", text: "No clear patterns found in RAW queries yet to suggest new tools." }] };
+      }
+
+      await logUsage("suggest_new_tools", {}, "Success");
+      return {
+        content: [{ type: "text", text: JSON.stringify(suggestions, null, 2) }],
+      };
+    } catch (error: any) {
+      return {
+        content: [{ type: "text", text: `Error analyzing usage: ${error.message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
 // Tool: Analyze Usage (Meta-optimization)
 server.tool(
   "analyze_usage",
@@ -562,7 +922,9 @@ server.tool(
           stats.total_calls++;
 
           // Count tools
-          stats.tool_usage[entry.tool] = (stats.tool_usage[entry.tool] || 0) + 1;
+          if (entry.tool) {
+            stats.tool_usage[entry.tool] = (stats.tool_usage[entry.tool] || 0) + 1;
+          }
 
           // Track errors (heuristic: summary contains "Error")
           if (entry.summary && entry.summary.startsWith("Error")) {
