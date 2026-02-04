@@ -80,7 +80,9 @@ The endpoint hosts Italian public administration ontologies including concepts f
 
 ## Distribution
 
-The compiled `dist/` directory is committed to the repository to allow direct GitHub installation without requiring a build step:
+The `dist/` directory is NOT committed to the repository. It is built automatically via the `prepare` script when installing from git:
 ```bash
 npx -y github:mfortini/schema-gov-it-mcp
 ```
+
+The `"files": ["dist"]` field in package.json ensures only the compiled output is included when publishing to npm.
