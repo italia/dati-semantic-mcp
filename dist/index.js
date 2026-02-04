@@ -27,6 +27,17 @@ async function logUsage(toolName, args, resultSummary) {
 }
 // SPARQL Endpoint
 const ENDPOINT = "https://schema.gov.it/sparql";
+// Sanitize string literals for safe SPARQL interpolation
+function sanitizeSparqlString(input) {
+    return input.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r");
+}
+// Sanitize URIs for safe SPARQL interpolation (only allow valid URI characters)
+function sanitizeSparqlUri(input) {
+    if (!/^https?:\/\/[^\s<>"{}|\\^`]+$/.test(input)) {
+        throw new Error(`Invalid URI: ${input}`);
+    }
+    return input;
+}
 const PREFIXES = `
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -61,7 +72,7 @@ function compressSparqlResult(result) {
         return [];
     // Optimization: For lists > 5 items, return tabular format to save tokens on repeated keys
     if (bindings.length > 5) {
-        const headers = result.head?.vars || Object.keys(bindings[0]).map((k) => k.value);
+        const headers = result.head?.vars || Object.keys(bindings[0]);
         const rows = bindings.map((b) => {
             return headers.map((h) => b[h]?.value ?? null);
         });
@@ -113,11 +124,12 @@ server.tool("explore_classes", "List available classes in the ontology to unders
     limit: z.number().optional().default(50),
     filter: z.string().optional().describe("Optional text filter for class URI"),
 }, async ({ limit, filter }) => {
+    const safeFilter = filter ? sanitizeSparqlString(filter) : undefined;
     let sparql = `
       SELECT DISTINCT ?class (COUNT(?s) AS ?count)
       WHERE {
         ?s a ?class .
-        ${filter ? `FILTER(REGEX(STR(?class), "${filter}", "i"))` : ""}
+        ${safeFilter ? `FILTER(REGEX(STR(?class), "${safeFilter}", "i"))` : ""}
       }
       GROUP BY ?class
       ORDER BY DESC(?count)
@@ -182,14 +194,15 @@ server.tool("check_coverage", "Analyze the usage coverage of a specific class or
 }, async ({ targetUri }) => {
     let query;
     if (targetUri) {
+        const safeUri = sanitizeSparqlUri(targetUri);
         query = `
         SELECT (COUNT(DISTINCT ?s) AS ?instances) (COUNT(DISTINCT ?p) AS ?propertiesUsed)
         WHERE {
-            { ?s a <${targetUri}> }
+            { ?s a <${safeUri}> }
             UNION
-            { ?s <${targetUri}> ?o }
+            { ?s <${safeUri}> ?o }
             UNION
-            { ?sub <${targetUri}> ?obj }
+            { ?sub <${safeUri}> ?obj }
         }
       `;
     }
@@ -289,20 +302,218 @@ server.tool("check_overlaps", "Identify potential overlaps (same labels) or expl
     }
 });
 // ------------------------------------------------------------------
-// INTELLIGENT TOOLS (Level 2)
+// 1. MODEL STRUCTURE (Ontologies)
 // ------------------------------------------------------------------
+server.tool("list_ontologies", "List available Ontologies (Data Models) and their titles.", {
+    limit: z.number().optional().default(50),
+}, async ({ limit }) => {
+    const query = `
+      SELECT DISTINCT ?ont ?label
+      WHERE {
+        ?ont a owl:Ontology .
+        OPTIONAL { ?ont rdfs:label|dct:title ?label }
+      }
+      ORDER BY ?label
+      LIMIT ${limit}
+    `;
+    try {
+        const result = await executeSparql(query);
+        await logUsage("list_ontologies", { limit }, "Success");
+        return {
+            content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
+        };
+    }
+    catch (error) {
+        return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+        };
+    }
+});
+server.tool("explore_ontology", "List Classes and Properties defined in a specific Ontology.", {
+    ontologyUri: z.string().describe("The URI of the Ontology (from list_ontologies)"),
+}, async ({ ontologyUri }) => {
+    const safeUri = sanitizeSparqlUri(ontologyUri);
+    const query = `
+      SELECT DISTINCT ?type ?item ?label
+      WHERE {
+        VALUES ?type { owl:Class owl:ObjectProperty owl:DatatypeProperty }
+        ?item a ?type .
+        OPTIONAL { ?item rdfs:label ?label }
+
+        # Heuristic: Filter where item URI starts with Ontology URI (common convention)
+        FILTER(STRSTARTS(STR(?item), "${safeUri}"))
+      }
+      ORDER BY ?type ?item
+      LIMIT 200
+    `;
+    try {
+        const result = await executeSparql(query);
+        await logUsage("explore_ontology", { ontologyUri }, "Success");
+        return {
+            content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
+        };
+    }
+    catch (error) {
+        return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+        };
+    }
+});
+// ------------------------------------------------------------------
+// 2. CONTROLLED VOCABULARIES (Codes & Values)
+// ------------------------------------------------------------------
+// High-level tool: List Controlled Vocabularies
+server.tool("list_vocabularies", "List available Controlled Vocabularies (ConceptSchemes) and their instance counts.", {
+    limit: z.number().optional().default(20),
+}, async ({ limit }) => {
+    const query = `
+      SELECT DISTINCT ?scheme ?label (COUNT(?c) AS ?count)
+      WHERE {
+        ?scheme a skos:ConceptScheme .
+        OPTIONAL { ?scheme rdfs:label|dct:title ?label }
+        OPTIONAL { ?c skos:inScheme ?scheme }
+      }
+      GROUP BY ?scheme ?label
+      ORDER BY DESC(?count)
+      LIMIT ${limit}
+    `;
+    try {
+        const result = await executeSparql(query);
+        await logUsage("list_vocabularies", { limit }, "Success");
+        return {
+            content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
+        };
+    }
+    catch (error) {
+        return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+        };
+    }
+});
+// High-level tool: Search inside a Vocabulary
+server.tool("search_in_vocabulary", "Search for concepts within a specific Controlled Vocabulary (ConceptScheme).", {
+    schemeUri: z.string().describe("The URI of the ConceptScheme (from list_vocabularies)"),
+    keyword: z.string().describe("The search keyword"),
+    limit: z.number().optional().default(20),
+}, async ({ schemeUri, keyword, limit }) => {
+    const safeSchemeUri = sanitizeSparqlUri(schemeUri);
+    const safeKeyword = sanitizeSparqlString(keyword);
+    const query = `
+      SELECT DISTINCT ?concept ?label ?code
+      WHERE {
+        ?concept skos:inScheme <${safeSchemeUri}> .
+        ?concept rdfs:label|skos:prefLabel ?label .
+        OPTIONAL { ?concept skos:notation|dct:identifier ?code }
+        FILTER(REGEX(STR(?label), "${safeKeyword}", "i"))
+      }
+      ORDER BY ?label
+      LIMIT ${limit}
+    `;
+    try {
+        const result = await executeSparql(query);
+        await logUsage("search_in_vocabulary", { schemeUri, keyword, limit }, "Success");
+        return {
+            content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
+        };
+    }
+    catch (error) {
+        return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+        };
+    }
+});
+// ------------------------------------------------------------------
+// 3. DATA & CATALOGS (Datasets)
+// ------------------------------------------------------------------
+server.tool("list_datasets", "List available Datasets (dcatapit:Dataset) in the catalog.", {
+    limit: z.number().optional().default(20),
+    offset: z.number().optional().default(0),
+}, async ({ limit, offset }) => {
+    const query = `
+      SELECT DISTINCT ?dataset ?label
+      WHERE {
+        ?dataset a <http://dati.gov.it/onto/dcatapit#Dataset> .
+        OPTIONAL { ?dataset dct:title ?label }
+      }
+      ORDER BY ?label
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `;
+    try {
+        const result = await executeSparql(query);
+        await logUsage("list_datasets", { limit, offset }, "Success");
+        return {
+            content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
+        };
+    }
+    catch (error) {
+        return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+        };
+    }
+});
+server.tool("explore_dataset", "Get details of a specific Dataset (Description, Distributions, Themes).", {
+    datasetUri: z.string().describe("The URI of the Dataset"),
+}, async ({ datasetUri }) => {
+    const safeUri = sanitizeSparqlUri(datasetUri);
+    const query = `
+      SELECT ?p ?o
+      WHERE {
+        <${safeUri}> ?p ?o .
+        FILTER (ISLITERAL(?o) || (ISURI(?o) && EXISTS { ?o a <http://dati.gov.it/onto/dcatapit#Distribution> }))
+      }
+      LIMIT 100
+    `;
+    const distQuery = `
+        SELECT ?dist ?format ?url
+        WHERE {
+            ?dist a <http://dati.gov.it/onto/dcatapit#Distribution> .
+            { <${safeUri}> dcat:distribution ?dist } UNION { ?dist isDistributionOf <${safeUri}> } .
+            OPTIONAL { ?dist dct:format ?format }
+            OPTIONAL { ?dist dcat:downloadURL ?url }
+        }
+        LIMIT 20
+    `;
+    try {
+        const details = await executeSparql(query);
+        const distributions = await executeSparql(distQuery);
+        await logUsage("explore_dataset", { datasetUri }, "Success");
+        return {
+            content: [{
+                    type: "text", text: JSON.stringify({
+                        metadata: compressSparqlResult(details),
+                        distributions: compressSparqlResult(distributions)
+                    })
+                }],
+        };
+    }
+    catch (error) {
+        return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+        };
+    }
+});
+// ------------------------------------------------------------------
+// 4. INTELLIGENT TOOLS (Advanced)
 // Smart Tool: Search Concepts
 server.tool("search_concepts", "Fuzzy search for concepts/classes/properties by keyword. Use this when you don't know the exact URI.", {
     keyword: z.string().describe("The search term (e.g. 'amministrazione')"),
     limit: z.number().optional().default(10),
 }, async ({ keyword, limit }) => {
+    const safeKeyword = sanitizeSparqlString(keyword);
     const query = `
       SELECT DISTINCT ?subject ?type ?label
       WHERE {
         VALUES ?type { owl:Class owl:ObjectProperty owl:DatatypeProperty skos:Concept }
         ?subject a ?type .
         ?subject rdfs:label|skos:prefLabel|dct:title ?label .
-        FILTER(REGEX(STR(?label), "${keyword}", "i"))
+        FILTER(REGEX(STR(?label), "${safeKeyword}", "i"))
       }
       LIMIT ${limit}
     `;
@@ -324,43 +535,45 @@ server.tool("search_concepts", "Fuzzy search for concepts/classes/properties by 
 server.tool("inspect_concept", "Get a comprehensive profile of a concept: definition, hierarchy, usage, and neighbors.", {
     uri: z.string().describe("The URI of the concept to inspect"),
 }, async ({ uri }) => {
-    // Parallel queries for speed
+    const safeUri = sanitizeSparqlUri(uri);
     const queries = {
         definition: `
-        SELECT ?p ?o WHERE { <${uri}> ?p ?o . FILTER(ISLITERAL(?o)) }
+        SELECT ?p ?o WHERE { <${safeUri}> ?p ?o . FILTER(ISLITERAL(?o)) }
       `,
         hierarchy: `
         SELECT ?type ?parent ?child WHERE {
-          { <${uri}> a ?type }
+          { <${safeUri}> a ?type }
           UNION
-          { <${uri}> rdfs:subClassOf|skos:broader ?parent }
+          { <${safeUri}> rdfs:subClassOf|skos:broader ?parent }
           UNION
-          { ?child rdfs:subClassOf|skos:broader <${uri}> }
+          { ?child rdfs:subClassOf|skos:broader <${safeUri}> }
         } LIMIT 50
       `,
         usage: `
-        SELECT (COUNT(?s) as ?instanceCount) WHERE { ?s a <${uri}> }
+        SELECT (COUNT(?s) as ?instanceCount) WHERE { ?s a <${safeUri}> }
       `,
         incoming: `
         SELECT DISTINCT ?p ?sType WHERE {
           ?s ?p ?o .
-          ?o a <${uri}> .
+          ?o a <${safeUri}> .
           OPTIONAL { ?s a ?sType }
         } LIMIT 20
       `,
         outgoing: `
         SELECT DISTINCT ?p ?oType WHERE {
-          ?s a <${uri}> .
+          ?s a <${safeUri}> .
           ?s ?p ?o .
           OPTIONAL { ?o a ?oType }
         } LIMIT 20
       `
     };
     try {
+        const entries = Object.entries(queries);
+        const sparqlResults = await Promise.all(entries.map(([, q]) => executeSparql(q)));
         const results = {};
-        for (const [key, q] of Object.entries(queries)) {
-            results[key] = compressSparqlResult(await executeSparql(q));
-        }
+        entries.forEach(([key], i) => {
+            results[key] = compressSparqlResult(sparqlResults[i]);
+        });
         await logUsage("inspect_concept", { uri }, "Success");
         return {
             content: [{ type: "text", text: JSON.stringify(results) }],
@@ -378,18 +591,20 @@ server.tool("find_relations", "Find how two concepts are connected (direct link 
     sourceUri: z.string(),
     targetUri: z.string(),
 }, async ({ sourceUri, targetUri }) => {
+    const safeSource = sanitizeSparqlUri(sourceUri);
+    const safeTarget = sanitizeSparqlUri(targetUri);
     const query = `
       SELECT ?p1 ?mid ?p2
       WHERE {
         {
-          <${sourceUri}> ?p1 <${targetUri}> .
+          <${safeSource}> ?p1 <${safeTarget}> .
           BIND("DIRECT" AS ?mid)
           BIND("NONE" AS ?p2)
         }
         UNION
         {
-          <${sourceUri}> ?p1 ?mid .
-          ?mid ?p2 <${targetUri}> .
+          <${safeSource}> ?p1 ?mid .
+          ?mid ?p2 <${safeTarget}> .
         }
       }
       LIMIT 10
@@ -453,6 +668,104 @@ server.tool("suggest_improvements", "Analyze the ontology for structural issues 
         };
     }
 });
+// ------------------------------------------------------------------
+// 5. META-TOOLS (Continuous Improvement)
+// ------------------------------------------------------------------
+server.tool("preview_distribution", "Download and preview the first 10 rows of a distribution (CSV/JSON only). Use this to see actual data.", {
+    url: z.string().describe("The download URL of the distribution"),
+}, async ({ url }) => {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch distribution: ${response.status} ${response.statusText}`);
+        }
+        const contentType = response.headers.get("content-type") || "";
+        const text = await response.text();
+        let preview = "";
+        if (contentType.includes("json") || url.endsWith(".json")) {
+            try {
+                const json = JSON.parse(text);
+                const array = Array.isArray(json) ? json : (json.results || json.data || [json]);
+                preview = JSON.stringify(array.slice(0, 10), null, 2);
+            }
+            catch (e) {
+                preview = text.slice(0, 2000) + "\n... (truncated)";
+            }
+        }
+        else {
+            // Assume CSV or text
+            const lines = text.split("\n").slice(0, 15); // Get a few more to handle headers
+            preview = lines.join("\n");
+        }
+        await logUsage("preview_distribution", { url }, "Success");
+        return {
+            content: [{ type: "text", text: `Preview of ${url}:\n\n${preview}` }],
+        };
+    }
+    catch (error) {
+        return {
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
+        };
+    }
+});
+server.tool("suggest_new_tools", "Analyze usage logs to suggest new potential tools based on frequent RAW queries.", {}, async () => {
+    if (!existsSync(LOG_FILE)) {
+        return { content: [{ type: "text", text: "No usage logs found yet." }] };
+    }
+    try {
+        const data = await readFile(LOG_FILE, "utf-8");
+        const lines = data.trim().split("\n");
+        // Analyze RAW queries to find frequent patterns
+        const rawQueries = [];
+        for (const line of lines) {
+            if (!line.trim())
+                continue;
+            try {
+                const entry = JSON.parse(line);
+                if (entry.tool === "query_sparql" && entry.args.query) {
+                    rawQueries.push(entry.args.query);
+                }
+            }
+            catch (e) { }
+        }
+        // Heuristic: Check for common patterns in RAW queries (e.g. "?s a <URI>")
+        const typeCounts = {};
+        const regexType = /\ba\s+<([^>]+)>/g;
+        for (const q of rawQueries) {
+            let match;
+            while ((match = regexType.exec(q)) !== null) {
+                const typeUri = match[1];
+                if (typeUri) {
+                    typeCounts[typeUri] = (typeCounts[typeUri] || 0) + 1;
+                }
+            }
+        }
+        const suggestions = Object.entries(typeCounts)
+            .filter(([_, count]) => count >= 2) // Threshold
+            .map(([uri, count]) => ({
+            type: "New Tool Recommendation",
+            reason: `You frequently query for instances of <${uri}> (${count} times).`, // Escaped < and > for markdown safety in my mind, but logic is clean
+            suggestion: `Consider adding a specialized tool: list_${uri.split('/').pop()?.toLowerCase()}`
+        }));
+        if (suggestions.length === 0) {
+            return { content: [{ type: "text", text: "No clear patterns found in RAW queries yet to suggest new tools." }] };
+        }
+        await logUsage("suggest_new_tools", {}, "Success");
+        return {
+            content: [{ type: "text", text: JSON.stringify(suggestions, null, 2) }],
+        };
+    }
+    catch (error) {
+        return {
+            content: [{ type: "text", text: `Error analyzing usage: ${error.message}` }],
+            isError: true,
+        };
+    }
+});
 // Tool: Analyze Usage (Meta-optimization)
 server.tool("analyze_usage", "Analyze the server's own usage logs to identify patterns, errors, or frequent queries.", {}, async () => {
     if (!existsSync(LOG_FILE)) {
@@ -474,7 +787,9 @@ server.tool("analyze_usage", "Analyze the server's own usage logs to identify pa
                 const entry = JSON.parse(line);
                 stats.total_calls++;
                 // Count tools
-                stats.tool_usage[entry.tool] = (stats.tool_usage[entry.tool] || 0) + 1;
+                if (entry.tool) {
+                    stats.tool_usage[entry.tool] = (stats.tool_usage[entry.tool] || 0) + 1;
+                }
                 // Track errors (heuristic: summary contains "Error")
                 if (entry.summary && entry.summary.startsWith("Error")) {
                     stats.errors.push(`[${entry.tool}] ${entry.summary}`);

@@ -31,6 +31,19 @@ async function logUsage(toolName: string, args: any, resultSummary: string) {
 // SPARQL Endpoint
 const ENDPOINT = "https://schema.gov.it/sparql";
 
+// Sanitize string literals for safe SPARQL interpolation
+function sanitizeSparqlString(input: string): string {
+  return input.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r");
+}
+
+// Sanitize URIs for safe SPARQL interpolation (only allow valid URI characters)
+function sanitizeSparqlUri(input: string): string {
+  if (!/^https?:\/\/[^\s<>"{}|\\^`]+$/.test(input)) {
+    throw new Error(`Invalid URI: ${input}`);
+  }
+  return input;
+}
+
 const PREFIXES = `
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -70,7 +83,7 @@ function compressSparqlResult(result: any): any {
 
   // Optimization: For lists > 5 items, return tabular format to save tokens on repeated keys
   if (bindings.length > 5) {
-    const headers = result.head?.vars || Object.keys(bindings[0]).map((k: any) => k.value);
+    const headers = result.head?.vars || Object.keys(bindings[0] as Record<string, unknown>);
     const rows = bindings.map((b: any) => {
       return headers.map((h: string) => b[h]?.value ?? null);
     });
@@ -136,11 +149,12 @@ server.tool(
     filter: z.string().optional().describe("Optional text filter for class URI"),
   },
   async ({ limit, filter }) => {
+    const safeFilter = filter ? sanitizeSparqlString(filter) : undefined;
     let sparql = `
       SELECT DISTINCT ?class (COUNT(?s) AS ?count)
       WHERE {
         ?s a ?class .
-        ${filter ? `FILTER(REGEX(STR(?class), "${filter}", "i"))` : ""}
+        ${safeFilter ? `FILTER(REGEX(STR(?class), "${safeFilter}", "i"))` : ""}
       }
       GROUP BY ?class
       ORDER BY DESC(?count)
@@ -219,14 +233,15 @@ server.tool(
   async ({ targetUri }) => {
     let query;
     if (targetUri) {
+      const safeUri = sanitizeSparqlUri(targetUri);
       query = `
         SELECT (COUNT(DISTINCT ?s) AS ?instances) (COUNT(DISTINCT ?p) AS ?propertiesUsed)
         WHERE {
-            { ?s a <${targetUri}> }
+            { ?s a <${safeUri}> }
             UNION
-            { ?s <${targetUri}> ?o }
+            { ?s <${safeUri}> ?o }
             UNION
-            { ?sub <${targetUri}> ?obj }
+            { ?sub <${safeUri}> ?obj }
         }
       `;
     } else {
@@ -382,12 +397,7 @@ server.tool(
     ontologyUri: z.string().describe("The URI of the Ontology (from list_ontologies)"),
   },
   async ({ ontologyUri }) => {
-    // We assume classes/props are linked via rdfs:isDefinedBy OR have the ontology URI as prefix (heuristic)
-    // A more reliable check for schema.gov.it is looking for things defined IN that graph or with that namespace.
-    // Given the structure, we'll try filtering by namespace match primarily.
-
-    // Simplification: Check for Classes and Properties that validly start with the ontology URI
-    // but often ontologies have hash or slash.
+    const safeUri = sanitizeSparqlUri(ontologyUri);
 
     const query = `
       SELECT DISTINCT ?type ?item ?label
@@ -395,9 +405,9 @@ server.tool(
         VALUES ?type { owl:Class owl:ObjectProperty owl:DatatypeProperty }
         ?item a ?type .
         OPTIONAL { ?item rdfs:label ?label }
-        
+
         # Heuristic: Filter where item URI starts with Ontology URI (common convention)
-        FILTER(STRSTARTS(STR(?item), "${ontologyUri}"))
+        FILTER(STRSTARTS(STR(?item), "${safeUri}"))
       }
       ORDER BY ?type ?item
       LIMIT 200
@@ -468,13 +478,15 @@ server.tool(
     limit: z.number().optional().default(20),
   },
   async ({ schemeUri, keyword, limit }) => {
+    const safeSchemeUri = sanitizeSparqlUri(schemeUri);
+    const safeKeyword = sanitizeSparqlString(keyword);
     const query = `
       SELECT DISTINCT ?concept ?label ?code
       WHERE {
-        ?concept skos:inScheme <${schemeUri}> .
+        ?concept skos:inScheme <${safeSchemeUri}> .
         ?concept rdfs:label|skos:prefLabel ?label .
         OPTIONAL { ?concept skos:notation|dct:identifier ?code }
-        FILTER(REGEX(STR(?label), "${keyword}", "i"))
+        FILTER(REGEX(STR(?label), "${safeKeyword}", "i"))
       }
       ORDER BY ?label
       LIMIT ${limit}
@@ -540,22 +552,21 @@ server.tool(
     datasetUri: z.string().describe("The URI of the Dataset"),
   },
   async ({ datasetUri }) => {
+    const safeUri = sanitizeSparqlUri(datasetUri);
     const query = `
       SELECT ?p ?o
       WHERE {
-        <${datasetUri}> ?p ?o .
+        <${safeUri}> ?p ?o .
         FILTER (ISLITERAL(?o) || (ISURI(?o) && EXISTS { ?o a <http://dati.gov.it/onto/dcatapit#Distribution> }))
       }
       LIMIT 100
     `;
 
-    // Also fetch distributions explicitly if needed, but the above query might catch them if linked directly.
-    // Let's do a specific query for distributions as well.
     const distQuery = `
         SELECT ?dist ?format ?url
         WHERE {
             ?dist a <http://dati.gov.it/onto/dcatapit#Distribution> .
-            { <${datasetUri}> dcat:distribution ?dist } UNION { ?dist isDistributionOf <${datasetUri}> } .
+            { <${safeUri}> dcat:distribution ?dist } UNION { ?dist isDistributionOf <${safeUri}> } .
             OPTIONAL { ?dist dct:format ?format }
             OPTIONAL { ?dist dcat:downloadURL ?url }
         }
@@ -595,13 +606,14 @@ server.tool(
     limit: z.number().optional().default(10),
   },
   async ({ keyword, limit }) => {
+    const safeKeyword = sanitizeSparqlString(keyword);
     const query = `
       SELECT DISTINCT ?subject ?type ?label
       WHERE {
         VALUES ?type { owl:Class owl:ObjectProperty owl:DatatypeProperty skos:Concept }
         ?subject a ?type .
         ?subject rdfs:label|skos:prefLabel|dct:title ?label .
-        FILTER(REGEX(STR(?label), "${keyword}", "i"))
+        FILTER(REGEX(STR(?label), "${safeKeyword}", "i"))
       }
       LIMIT ${limit}
     `;
@@ -629,33 +641,33 @@ server.tool(
     uri: z.string().describe("The URI of the concept to inspect"),
   },
   async ({ uri }) => {
-    // Parallel queries for speed
+    const safeUri = sanitizeSparqlUri(uri);
     const queries = {
       definition: `
-        SELECT ?p ?o WHERE { <${uri}> ?p ?o . FILTER(ISLITERAL(?o)) }
+        SELECT ?p ?o WHERE { <${safeUri}> ?p ?o . FILTER(ISLITERAL(?o)) }
       `,
       hierarchy: `
         SELECT ?type ?parent ?child WHERE {
-          { <${uri}> a ?type }
+          { <${safeUri}> a ?type }
           UNION
-          { <${uri}> rdfs:subClassOf|skos:broader ?parent }
+          { <${safeUri}> rdfs:subClassOf|skos:broader ?parent }
           UNION
-          { ?child rdfs:subClassOf|skos:broader <${uri}> }
+          { ?child rdfs:subClassOf|skos:broader <${safeUri}> }
         } LIMIT 50
       `,
       usage: `
-        SELECT (COUNT(?s) as ?instanceCount) WHERE { ?s a <${uri}> }
+        SELECT (COUNT(?s) as ?instanceCount) WHERE { ?s a <${safeUri}> }
       `,
       incoming: `
         SELECT DISTINCT ?p ?sType WHERE {
           ?s ?p ?o .
-          ?o a <${uri}> .
+          ?o a <${safeUri}> .
           OPTIONAL { ?s a ?sType }
         } LIMIT 20
       `,
       outgoing: `
         SELECT DISTINCT ?p ?oType WHERE {
-          ?s a <${uri}> .
+          ?s a <${safeUri}> .
           ?s ?p ?o .
           OPTIONAL { ?o a ?oType }
         } LIMIT 20
@@ -663,10 +675,14 @@ server.tool(
     };
 
     try {
-      const results: any = {};
-      for (const [key, q] of Object.entries(queries)) {
-        results[key] = compressSparqlResult(await executeSparql(q as string));
-      }
+      const entries = Object.entries(queries);
+      const sparqlResults = await Promise.all(
+        entries.map(([, q]) => executeSparql(q))
+      );
+      const results: Record<string, any> = {};
+      entries.forEach(([key], i) => {
+        results[key] = compressSparqlResult(sparqlResults[i]);
+      });
 
       await logUsage("inspect_concept", { uri }, "Success");
       return {
@@ -690,18 +706,20 @@ server.tool(
     targetUri: z.string(),
   },
   async ({ sourceUri, targetUri }) => {
+    const safeSource = sanitizeSparqlUri(sourceUri);
+    const safeTarget = sanitizeSparqlUri(targetUri);
     const query = `
       SELECT ?p1 ?mid ?p2
       WHERE {
         {
-          <${sourceUri}> ?p1 <${targetUri}> .
+          <${safeSource}> ?p1 <${safeTarget}> .
           BIND("DIRECT" AS ?mid)
           BIND("NONE" AS ?p2)
         }
         UNION
         {
-          <${sourceUri}> ?p1 ?mid .
-          ?mid ?p2 <${targetUri}> .
+          <${safeSource}> ?p1 ?mid .
+          ?mid ?p2 <${safeTarget}> .
         }
       }
       LIMIT 10
@@ -866,7 +884,9 @@ server.tool(
         let match;
         while ((match = regexType.exec(q)) !== null) {
           const typeUri = match[1];
-          typeCounts[typeUri] = (typeCounts[typeUri] || 0) + 1;
+          if (typeUri) {
+            typeCounts[typeUri] = (typeCounts[typeUri] || 0) + 1;
+          }
         }
       }
 

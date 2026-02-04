@@ -24,17 +24,30 @@ Single-file implementation (`src/index.ts`) using:
 - `zod` for parameter validation
 - Direct `fetch` calls to the SPARQL endpoint
 
-### Tool Hierarchy (10 tools)
+### Tool Hierarchy (19 tools)
 
 **Base Operations:**
 - `query_sparql` - Raw SPARQL execution with automatic prefix injection
 - `explore_catalog` - List available graphs/ontologies
+- `explore_classes` - Discover classes with instance counts
 
 **Semantic Analytics:**
-- `explore_classes` - Discover classes with instance counts
 - `check_coverage` - Analyze usage of specific classes/properties
 - `check_quality` - Find missing labels/descriptions
 - `check_overlaps` - Identify duplicate labels or explicit mappings
+
+**Data Model (Ontologies):**
+- `list_ontologies` - List available ontologies with titles
+- `explore_ontology` - List classes and properties in a specific ontology
+
+**Controlled Vocabularies:**
+- `list_vocabularies` - List ConceptSchemes with instance counts
+- `search_in_vocabulary` - Search concepts within a specific vocabulary
+
+**Catalogs & Datasets:**
+- `list_datasets` - List DCAT-AP_IT datasets
+- `explore_dataset` - Get dataset details and distributions
+- `preview_distribution` - Download and preview first rows of CSV/JSON data
 
 **Intelligent Tools:**
 - `search_concepts` - Fuzzy keyword search (use when URI is unknown)
@@ -43,6 +56,7 @@ Single-file implementation (`src/index.ts`) using:
 - `suggest_improvements` - Detect orphan classes and cycles
 
 **Meta:**
+- `suggest_new_tools` - Analyze usage logs to suggest new specialized tools
 - `analyze_usage` - Parse `usage_log.jsonl` for patterns and errors
 
 ### Key Patterns
@@ -51,6 +65,8 @@ Single-file implementation (`src/index.ts`) using:
 ```
 rdf, rdfs, owl, skos, dct, xsd, dcat, foaf
 ```
+
+**Input Sanitization:** All user-provided parameters are sanitized before SPARQL interpolation (string escaping for literals, URI validation for URIs).
 
 **Result Compression:** Large results (>5 items) use tabular format (headers + rows) for token efficiency.
 

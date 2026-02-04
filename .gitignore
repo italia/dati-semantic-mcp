@@ -2,3 +2,9 @@ node_modules
 usage_log.jsonl
 *.log
 .DS_Store
+
+# Compiled artifacts outside dist/
+/*.js
+/*.js.map
+/*.d.ts
+/*.d.ts.map
