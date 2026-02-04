@@ -81,7 +81,7 @@ Oppure aggiungi manualmente a `~/.claude.json`:
 git clone https://github.com/mfortini/schema-gov-it-mcp.git
 cd schema-gov-it-mcp
 npm install
-npm run build   # Opzionale: il codice compilato /dist è già incluso
+npm run build   # Automatico via prepare, ma puoi lanciarlo manualmente
 node dist/index.js
 ```
 
