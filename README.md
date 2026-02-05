@@ -6,7 +6,7 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 ## Strumenti disponibili
 
-Il server espone **19 strumenti** organizzati in 5 livelli:
+Il server espone **23 strumenti** organizzati in 8 categorie:
 
 ### 1. Operazioni Base
 *   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint. Utile per esplorazione ad-hoc.
@@ -21,10 +21,13 @@ Il server espone **19 strumenti** organizzati in 5 livelli:
 ### 3. Modello Dati (Ontologie)
 *   `list_ontologies`: Elenca le ontologie disponibili (es. Città, Servizi Pubblici).
 *   `explore_ontology`: Mostra Classi e Proprietà definite in una specifica ontologia.
+*   `list_properties`: Elenca ObjectProperty e DatatypeProperty con dominio e range.
+*   `get_property_details`: Ottiene dettagli completi di una proprietà (dominio, range, inverse, functional).
 
 ### 4. Vocabolari Controllati (Reference Data)
 *   `list_vocabularies`: Elenca i vocabolari controllati disponibili (ConceptScheme) con conteggio istanze.
 *   `search_in_vocabulary`: Cerca concetti all'interno di un vocabolario specifico.
+*   `browse_vocabulary`: Naviga un vocabolario con paginazione (utile per vocabolari grandi come codici ICD, comuni).
 
 ### 5. Cataloghi e Dataset (Dati)
 *   `list_datasets`: Elenca i dataset DCAT-AP_IT disponibili.
@@ -36,6 +39,7 @@ Il server espone **19 strumenti** organizzati in 5 livelli:
 *   `inspect_concept`: **Deep Dive**. Ottiene in un colpo solo definizione, gerarchia, usage stats e vicini di un concetto.
 *   `find_relations`: **Pathfinding**. Scopre come due concetti sono collegati (link diretto o via 1 intermediario).
 *   `suggest_improvements`: Euristiche per trovare anomalie strutturali nell'ontologia (classi orfane, cicli).
+*   `describe_resource`: **CBD**. Ottiene tutte le triple di una risorsa (Concise Bounded Description).
 
 ### 7. Meta-Ottimizzazione
 *   `suggest_new_tools`: Analizza i log delle query RAW e suggerisce nuovi tool specializzati in base all'utilizzo reale.
