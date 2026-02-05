@@ -6,6 +6,72 @@ import { appendFile, readFile } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 
+// =============================================================================
+// TYPE DEFINITIONS
+// =============================================================================
+
+/** SPARQL binding value with type information */
+interface SparqlBindingValue {
+  type: string;
+  value: string;
+  datatype?: string;
+  "xml:lang"?: string;
+}
+
+/** SPARQL result binding row */
+interface SparqlBinding {
+  [key: string]: SparqlBindingValue;
+}
+
+/** Full SPARQL query result structure */
+interface SparqlResult {
+  head: { vars: string[] };
+  results: { bindings: SparqlBinding[] };
+}
+
+/** Compressed result format for large datasets */
+interface CompressedTabular {
+  headers: string[];
+  rows: (string | null)[][];
+}
+
+/** Compressed result format for small datasets */
+type CompressedSimple = Record<string, string>[];
+
+/** Union type for compressed SPARQL results */
+type CompressedResult = CompressedTabular | CompressedSimple | [];
+
+/** Successful tool result */
+interface ToolSuccess<T = unknown> {
+  success: true;
+  data: T;
+  rowCount?: number;
+}
+
+/** Error tool result */
+interface ToolError {
+  success: false;
+  error: string;
+  suggestion?: string;
+}
+
+/** Union type for tool results */
+type ToolResult<T = unknown> = ToolSuccess<T> | ToolError;
+
+/** MCP tool response format with index signature for SDK compatibility */
+interface McpToolResponse {
+  [x: string]: unknown;
+  content: { type: "text"; text: string }[];
+  isError?: boolean;
+}
+
+// =============================================================================
+// CONSTANTS
+// =============================================================================
+
+/** Maximum character limit for tool responses to prevent excessive output */
+const CHARACTER_LIMIT = 50_000;
+
 const server = new McpServer({
   name: "schema-gov-it",
   version: "1.0.0",
@@ -13,8 +79,16 @@ const server = new McpServer({
 
 const LOG_FILE = join(process.cwd(), "usage_log.jsonl");
 
-// Helper to log usage
-async function logUsage(toolName: string, args: any, resultSummary: string) {
+// =============================================================================
+// LOGGING
+// =============================================================================
+
+/** Log tool usage to JSONL file */
+async function logUsage(
+  toolName: string,
+  args: Record<string, unknown>,
+  resultSummary: string
+): Promise<void> {
   const entry = {
     timestamp: new Date().toISOString(),
     tool: toolName,
@@ -55,7 +129,7 @@ PREFIX dcat: <http://www.w3.org/ns/dcat#>
 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
 `;
 
-async function executeSparql(query: string): Promise<any> {
+async function executeSparql(query: string): Promise<SparqlResult> {
   const fullQuery = PREFIXES + "\n" + query;
   const response = await fetch(ENDPOINT, {
     method: "POST",
@@ -70,31 +144,40 @@ async function executeSparql(query: string): Promise<any> {
     throw new Error(`SPARQL request failed: ${response.status} ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<SparqlResult>;
 }
 
+// =============================================================================
+// RESULT COMPRESSION
+// =============================================================================
 
-// Helper to compress SPARQL results
-function compressSparqlResult(result: any): any {
-  if (!result?.results?.bindings) return result;
+/** Compress SPARQL results for token efficiency */
+function compressSparqlResult(result: SparqlResult): CompressedResult {
+  if (!result?.results?.bindings) return [];
 
   const bindings = result.results.bindings;
   if (bindings.length === 0) return [];
 
   // Optimization: For lists > 5 items, return tabular format to save tokens on repeated keys
   if (bindings.length > 5) {
-    const headers = result.head?.vars || Object.keys(bindings[0] as Record<string, unknown>);
-    const rows = bindings.map((b: any) => {
+    const firstBinding = bindings[0];
+    const headers = result.head?.vars || (firstBinding ? Object.keys(firstBinding) : []);
+    const rows = bindings.map((b: SparqlBinding) => {
       return headers.map((h: string) => b[h]?.value ?? null);
     });
     return { headers, rows };
   }
 
   // Standard compact format for small results
-  const simplified = bindings.map((binding: any) => {
-    const row: any = {};
+  const simplified: CompressedSimple = bindings.map((binding: SparqlBinding) => {
+    const row: Record<string, string> = {};
     for (const key in binding) {
-      row[key] = binding[key].value;
+      if (Object.prototype.hasOwnProperty.call(binding, key)) {
+        const bindingValue = binding[key];
+        if (bindingValue) {
+          row[key] = bindingValue.value;
+        }
+      }
     }
     return row;
   });
@@ -102,55 +185,170 @@ function compressSparqlResult(result: any): any {
   return simplified;
 }
 
-server.tool(
-  "query_sparql",
-  "Execute a RAW SPARQL query against schema.gov.it. Use this for ad-hoc exploration.",
-  {
-    query: z.string().describe("The SPARQL query to execute"),
-  },
-  async ({ query }) => {
-    try {
-      const result = await executeSparql(query);
-      const rowCount = result.results?.bindings?.length ?? 0;
-      await logUsage("query_sparql", { query }, `Success: ${rowCount} rows`);
+// =============================================================================
+// TOOL EXECUTION HELPERS
+// =============================================================================
 
-      const compressed = compressSparqlResult(result);
+/** Extract error message from unknown error */
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
 
+/** Truncate text to CHARACTER_LIMIT with indicator */
+function truncateResult(text: string): { text: string; truncated: boolean } {
+  if (text.length <= CHARACTER_LIMIT) {
+    return { text, truncated: false };
+  }
+  const truncated = text.slice(0, CHARACTER_LIMIT);
+  return { text: truncated, truncated: true };
+}
+
+/**
+ * Central helper for executing tools with consistent error handling, logging, and truncation.
+ * @param toolName - Name of the tool for logging
+ * @param args - Tool arguments for logging
+ * @param handler - Async function that performs the tool operation
+ */
+async function executeTool<T>(
+  toolName: string,
+  args: Record<string, unknown>,
+  handler: () => Promise<ToolResult<T>>
+): Promise<McpToolResponse> {
+  try {
+    const result = await handler();
+
+    if (!result.success) {
+      await logUsage(toolName, args, `Error: ${result.error}`);
+      let errorText = `Error: ${result.error}`;
+      if (result.suggestion) {
+        errorText += `\nSuggestion: ${result.suggestion}`;
+      }
       return {
-        content: [
-          {
-            type: "text",
-            // Use compact JSON (no whitespace) for maximum token efficiency
-            text: JSON.stringify(compressed),
-          },
-        ],
-      };
-    } catch (error: any) {
-      await logUsage("query_sparql", { query }, `Error: ${error.message}`);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error executing query: ${error.message}`,
-          },
-        ],
+        content: [{ type: "text", text: errorText }],
         isError: true,
       };
     }
+
+    const jsonText = JSON.stringify(result.data);
+    const { text, truncated } = truncateResult(jsonText);
+
+    const rowInfo = result.rowCount !== undefined ? `, ${result.rowCount} rows` : "";
+    await logUsage(toolName, args, `Success${rowInfo}${truncated ? " (truncated)" : ""}`);
+
+    if (truncated) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            _truncated: true,
+            _message: `Result exceeded ${CHARACTER_LIMIT} characters and was truncated`,
+            data: JSON.parse(text.slice(0, text.lastIndexOf("}") + 1) || "null")
+          })
+        }],
+      };
+    }
+
+    return {
+      content: [{ type: "text", text }],
+    };
+  } catch (error: unknown) {
+    const message = getErrorMessage(error);
+    await logUsage(toolName, args, `Error: ${message}`);
+    return {
+      content: [{ type: "text", text: `Error: ${message}` }],
+      isError: true,
+    };
   }
+}
+
+/**
+ * Specialized helper for SPARQL-based tools.
+ * Handles query execution, compression, and standard response formatting.
+ */
+async function executeSparqlTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  query: string
+): Promise<McpToolResponse> {
+  return executeTool(toolName, args, async () => {
+    const result = await executeSparql(query);
+    const rowCount = result.results?.bindings?.length ?? 0;
+    const compressed = compressSparqlResult(result);
+    return { success: true, data: compressed, rowCount };
+  });
+}
+
+// =============================================================================
+// TOOL DEFINITIONS
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// GROUP A: Foundation Tools
+// -----------------------------------------------------------------------------
+
+server.registerTool(
+  "query_sparql",
+  {
+    title: "Execute SPARQL Query",
+    description: `Execute a RAW SPARQL query against schema.gov.it.
+
+**Args:**
+- query: The SPARQL query to execute (prefixes are auto-injected)
+
+**Returns:**
+- Compressed JSON result (tabular for >5 rows, object array otherwise)
+
+**Examples:**
+- \`SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10\`
+- \`SELECT ?class (COUNT(?s) AS ?count) WHERE { ?s a ?class } GROUP BY ?class\`
+
+**Note:** Use this for ad-hoc exploration. Prefer specialized tools for common operations.`,
+    inputSchema: {
+      query: z.string().describe("The SPARQL query to execute"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ query }) => executeSparqlTool("query_sparql", { query }, query)
 );
 
-// High-level tool: Explore Classes
-server.tool(
+server.registerTool(
   "explore_classes",
-  "List available classes in the ontology to understand content.",
   {
-    limit: z.number().optional().default(50),
-    filter: z.string().optional().describe("Optional text filter for class URI"),
+    title: "Explore Classes",
+    description: `List available classes in the ontology with instance counts.
+
+**Args:**
+- limit: Maximum number of classes to return (default: 50)
+- filter: Optional regex filter for class URI (case-insensitive)
+
+**Returns:**
+- List of classes with instance counts, ordered by count descending
+
+**Examples:**
+- No args: Returns top 50 classes by instance count
+- filter="Person": Returns classes containing "Person" in URI`,
+    inputSchema: {
+      limit: z.number().optional().default(50),
+      filter: z.string().optional().describe("Optional text filter for class URI"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ limit, filter }) => {
     const safeFilter = filter ? sanitizeSparqlString(filter) : undefined;
-    let sparql = `
+    const query = `
       SELECT DISTINCT ?class (COUNT(?s) AS ?count)
       WHERE {
         ?s a ?class .
@@ -160,39 +358,41 @@ server.tool(
       ORDER BY DESC(?count)
       LIMIT ${limit}
     `;
-
-    try {
-      const result = await executeSparql(sparql);
-      await logUsage("explore_classes", { limit, filter }, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    return executeSparqlTool("explore_classes", { limit, filter }, query);
   }
 );
 
 
-// High-level tool: Explore Catalog (Graphs/Ontologies)
-server.tool(
+server.registerTool(
   "explore_catalog",
-  "List named graphs or ontologies available in the endpoint.",
-  {},
+  {
+    title: "Explore Catalog",
+    description: `List named graphs and ontologies available in the endpoint.
+
+**Args:** None
+
+**Returns:**
+- graphs: List of named graphs in the endpoint
+- ontologies: List of owl:Ontology and skos:ConceptScheme resources
+
+**Note:** Both queries run in parallel for performance.`,
+    inputSchema: {},
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
   async () => {
-    // Try to list graphs. If not supported, list top concept schemes or ontologies.
-    const query = `
+    const graphsQuery = `
       SELECT DISTINCT ?g ?type
       WHERE {
         GRAPH ?g { ?s ?p ?o }
       }
       LIMIT 100
     `;
-    // Fallback if GRAPH lookup is not allowed/supported in default graph
-    const queryOntologies = `
+    const ontologiesQuery = `
       SELECT DISTINCT ?s ?type
       WHERE {
         VALUES ?type { owl:Ontology skos:ConceptScheme }
@@ -201,37 +401,58 @@ server.tool(
       LIMIT 100
     `;
 
-    try {
-      const result = await executeSparql(query);
-      const resultOnt = await executeSparql(queryOntologies);
+    return executeTool("explore_catalog", {}, async () => {
+      // Execute both queries in parallel
+      const [graphResult, ontResult] = await Promise.all([
+        executeSparql(graphsQuery),
+        executeSparql(ontologiesQuery),
+      ]);
 
-      await logUsage("explore_catalog", {}, "Success");
       return {
-        content: [{
-          type: "text", text: JSON.stringify({
-            graphs: compressSparqlResult(result),
-            ontologies: compressSparqlResult(resultOnt)
-          })
-        }],
+        success: true,
+        data: {
+          graphs: compressSparqlResult(graphResult),
+          ontologies: compressSparqlResult(ontResult),
+        },
+        rowCount: (graphResult.results?.bindings?.length ?? 0) +
+          (ontResult.results?.bindings?.length ?? 0),
       };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    });
   }
 );
 
-// High-level tool: Check Coverage
-server.tool(
+// -----------------------------------------------------------------------------
+// GROUP B: Analytics Tools
+// -----------------------------------------------------------------------------
+
+server.registerTool(
   "check_coverage",
-  "Analyze the usage coverage of a specific class or property, or global stats.",
   {
-    targetUri: z.string().optional().describe("URI of class or property to check coverage for"),
+    title: "Check Coverage",
+    description: `Analyze usage coverage of a specific class or property, or get global stats.
+
+**Args:**
+- targetUri: (optional) URI of class or property to check
+
+**Returns:**
+- If targetUri provided: instance count and properties used
+- If no targetUri: top 50 types by instance count
+
+**Examples:**
+- No args: Global coverage statistics
+- targetUri="http://...#Person": Coverage for Person class`,
+    inputSchema: {
+      targetUri: z.string().optional().describe("URI of class or property to check coverage for"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ targetUri }) => {
-    let query;
+    let query: string;
     if (targetUri) {
       const safeUri = sanitizeSparqlUri(targetUri);
       query = `
@@ -255,28 +476,32 @@ server.tool(
         LIMIT 50
       `;
     }
-
-    try {
-      const result = await executeSparql(query);
-      await logUsage("check_coverage", { targetUri }, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    return executeSparqlTool("check_coverage", { targetUri }, query);
   }
 );
 
-// High-level tool: Check Quality
-server.tool(
+server.registerTool(
   "check_quality",
-  "Verify quality issues like missing labels or descriptions.",
   {
-    limit: z.number().optional().default(50),
+    title: "Check Quality",
+    description: `Verify quality issues like missing labels or descriptions.
+
+**Args:**
+- limit: Maximum results to return (default: 50)
+
+**Returns:**
+- List of resources missing rdfs:label or skos:prefLabel
+
+**Note:** Checks owl:Class, owl:ObjectProperty, owl:DatatypeProperty, and skos:Concept.`,
+    inputSchema: {
+      limit: z.number().optional().default(50),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ limit }) => {
     const query = `
@@ -290,31 +515,35 @@ server.tool(
       }
       LIMIT ${limit}
     `;
-
-    try {
-      const result = await executeSparql(query);
-      await logUsage("check_quality", { limit }, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    return executeSparqlTool("check_quality", { limit }, query);
   }
 );
 
-// High-level tool: Check Overlaps
-server.tool(
+server.registerTool(
   "check_overlaps",
-  "Identify potential overlaps (same labels) or explicit mappings.",
   {
-    limit: z.number().optional().default(50),
+    title: "Check Overlaps",
+    description: `Identify potential overlaps (same labels) or explicit mappings.
+
+**Args:**
+- limit: Maximum results to return (default: 50)
+
+**Returns:**
+- List of potential overlaps with relation type:
+  - owl:sameAs mappings
+  - skos:exactMatch mappings
+  - Same Label collisions`,
+    inputSchema: {
+      limit: z.number().optional().default(50),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ limit }) => {
-    // Check for explicit mappings and label collisions
     const query = `
       SELECT ?s1 ?s2 ?label ?relation
       WHERE {
@@ -337,32 +566,35 @@ server.tool(
       }
       LIMIT ${limit}
     `;
-
-    try {
-      const result = await executeSparql(query);
-      await logUsage("check_overlaps", { limit }, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    return executeSparqlTool("check_overlaps", { limit }, query);
   }
 );
 
 
-// ------------------------------------------------------------------
-// 1. MODEL STRUCTURE (Ontologies)
-// ------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// GROUP C: Ontology Tools
+// -----------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
   "list_ontologies",
-  "List available Ontologies (Data Models) and their titles.",
   {
-    limit: z.number().optional().default(50),
+    title: "List Ontologies",
+    description: `List available Ontologies (Data Models) and their titles.
+
+**Args:**
+- limit: Maximum number of ontologies to return (default: 50)
+
+**Returns:**
+- List of ontology URIs with labels/titles, ordered alphabetically`,
+    inputSchema: {
+      limit: z.number().optional().default(50),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ limit }) => {
     const query = `
@@ -374,71 +606,75 @@ server.tool(
       ORDER BY ?label
       LIMIT ${limit}
     `;
-
-    try {
-      const result = await executeSparql(query);
-      await logUsage("list_ontologies", { limit }, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    return executeSparqlTool("list_ontologies", { limit }, query);
   }
 );
 
-server.tool(
+server.registerTool(
   "explore_ontology",
-  "List Classes and Properties defined in a specific Ontology.",
   {
-    ontologyUri: z.string().describe("The URI of the Ontology (from list_ontologies)"),
+    title: "Explore Ontology",
+    description: `List Classes and Properties defined in a specific Ontology.
+
+**Args:**
+- ontologyUri: URI of the ontology (from list_ontologies)
+
+**Returns:**
+- List of classes and properties with labels, grouped by type
+
+**Note:** Uses URI prefix heuristic - items whose URI starts with the ontology URI.`,
+    inputSchema: {
+      ontologyUri: z.string().describe("The URI of the Ontology (from list_ontologies)"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ ontologyUri }) => {
     const safeUri = sanitizeSparqlUri(ontologyUri);
-
     const query = `
       SELECT DISTINCT ?type ?item ?label
       WHERE {
         VALUES ?type { owl:Class owl:ObjectProperty owl:DatatypeProperty }
         ?item a ?type .
         OPTIONAL { ?item rdfs:label ?label }
-
-        # Heuristic: Filter where item URI starts with Ontology URI (common convention)
         FILTER(STRSTARTS(STR(?item), "${safeUri}"))
       }
       ORDER BY ?type ?item
       LIMIT 200
     `;
-
-    try {
-      const result = await executeSparql(query);
-      await logUsage("explore_ontology", { ontologyUri }, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    return executeSparqlTool("explore_ontology", { ontologyUri }, query);
   }
 );
 
 
-// ------------------------------------------------------------------
-// 2. CONTROLLED VOCABULARIES (Codes & Values)
-// ------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// GROUP D: Vocabulary Tools
+// -----------------------------------------------------------------------------
 
-// High-level tool: List Controlled Vocabularies
-server.tool(
+server.registerTool(
   "list_vocabularies",
-  "List available Controlled Vocabularies (ConceptSchemes) and their instance counts.",
   {
-    limit: z.number().optional().default(20),
+    title: "List Vocabularies",
+    description: `List available Controlled Vocabularies (ConceptSchemes) and their instance counts.
+
+**Args:**
+- limit: Maximum vocabularies to return (default: 20)
+
+**Returns:**
+- List of ConceptSchemes with labels and concept counts, ordered by count descending`,
+    inputSchema: {
+      limit: z.number().optional().default(20),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ limit }) => {
     const query = `
@@ -452,30 +688,34 @@ server.tool(
       ORDER BY DESC(?count)
       LIMIT ${limit}
     `;
-
-    try {
-      const result = await executeSparql(query);
-      await logUsage("list_vocabularies", { limit }, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    return executeSparqlTool("list_vocabularies", { limit }, query);
   }
 );
 
-// High-level tool: Search inside a Vocabulary
-server.tool(
+server.registerTool(
   "search_in_vocabulary",
-  "Search for concepts within a specific Controlled Vocabulary (ConceptScheme).",
   {
-    schemeUri: z.string().describe("The URI of the ConceptScheme (from list_vocabularies)"),
-    keyword: z.string().describe("The search keyword"),
-    limit: z.number().optional().default(20),
+    title: "Search in Vocabulary",
+    description: `Search for concepts within a specific Controlled Vocabulary (ConceptScheme).
+
+**Args:**
+- schemeUri: URI of the ConceptScheme (from list_vocabularies)
+- keyword: Search term for label matching (case-insensitive regex)
+- limit: Maximum results (default: 20)
+
+**Returns:**
+- Matching concepts with labels and optional notation codes`,
+    inputSchema: {
+      schemeUri: z.string().describe("The URI of the ConceptScheme (from list_vocabularies)"),
+      keyword: z.string().describe("The search keyword"),
+      limit: z.number().optional().default(20),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ schemeUri, keyword, limit }) => {
     const safeSchemeUri = sanitizeSparqlUri(schemeUri);
@@ -491,35 +731,40 @@ server.tool(
       ORDER BY ?label
       LIMIT ${limit}
     `;
-
-    try {
-      const result = await executeSparql(query);
-      await logUsage("search_in_vocabulary", { schemeUri, keyword, limit }, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    return executeSparqlTool("search_in_vocabulary", { schemeUri, keyword, limit }, query);
   }
 );
 
-// ------------------------------------------------------------------
-// 3. DATA & CATALOGS (Datasets)
-// ------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// GROUP E: Dataset Tools
+// -----------------------------------------------------------------------------
 
-server.tool(
+server.registerTool(
   "list_datasets",
-  "List available Datasets (dcatapit:Dataset) in the catalog.",
   {
-    limit: z.number().optional().default(20),
-    offset: z.number().optional().default(0),
+    title: "List Datasets",
+    description: `List available Datasets (dcatapit:Dataset) in the catalog.
+
+**Args:**
+- limit: Maximum datasets per page (default: 20)
+- offset: Number of datasets to skip (default: 0)
+
+**Returns:**
+- items: List of datasets with labels
+- pagination: Metadata with count, offset, has_more, next_offset`,
+    inputSchema: {
+      limit: z.number().optional().default(20),
+      offset: z.number().optional().default(0),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ limit, offset }) => {
-    const query = `
+    const dataQuery = `
       SELECT DISTINCT ?dataset ?label
       WHERE {
         ?dataset a <http://dati.gov.it/onto/dcatapit#Dataset> .
@@ -530,30 +775,68 @@ server.tool(
       OFFSET ${offset}
     `;
 
-    try {
-      const result = await executeSparql(query);
-      await logUsage("list_datasets", { limit, offset }, "Success");
+    const countQuery = `
+      SELECT (COUNT(DISTINCT ?dataset) AS ?total)
+      WHERE {
+        ?dataset a <http://dati.gov.it/onto/dcatapit#Dataset> .
+      }
+    `;
+
+    return executeTool("list_datasets", { limit, offset }, async () => {
+      const [dataResult, countResult] = await Promise.all([
+        executeSparql(dataQuery),
+        executeSparql(countQuery),
+      ]);
+
+      const items = compressSparqlResult(dataResult);
+      const count = dataResult.results?.bindings?.length ?? 0;
+      const total = parseInt(countResult.results?.bindings?.[0]?.total?.value ?? "0", 10);
+
       return {
-        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
+        success: true,
+        data: {
+          items,
+          pagination: {
+            total,
+            count,
+            offset,
+            has_more: offset + count < total,
+            next_offset: offset + count < total ? offset + count : null,
+          },
+        },
+        rowCount: count,
       };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    });
   }
 );
 
-server.tool(
+server.registerTool(
   "explore_dataset",
-  "Get details of a specific Dataset (Description, Distributions, Themes).",
   {
-    datasetUri: z.string().describe("The URI of the Dataset"),
+    title: "Explore Dataset",
+    description: `Get details of a specific Dataset including metadata and distributions.
+
+**Args:**
+- datasetUri: URI of the dataset to explore
+
+**Returns:**
+- metadata: Dataset properties (literals and distribution references)
+- distributions: List of distributions with format and download URLs
+
+**Note:** Both queries run in parallel for performance.`,
+    inputSchema: {
+      datasetUri: z.string().describe("The URI of the Dataset"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ datasetUri }) => {
     const safeUri = sanitizeSparqlUri(datasetUri);
-    const query = `
+    const metadataQuery = `
       SELECT ?p ?o
       WHERE {
         <${safeUri}> ?p ?o .
@@ -563,47 +846,63 @@ server.tool(
     `;
 
     const distQuery = `
-        SELECT ?dist ?format ?url
-        WHERE {
-            ?dist a <http://dati.gov.it/onto/dcatapit#Distribution> .
-            { <${safeUri}> dcat:distribution ?dist } UNION { ?dist isDistributionOf <${safeUri}> } .
-            OPTIONAL { ?dist dct:format ?format }
-            OPTIONAL { ?dist dcat:downloadURL ?url }
-        }
-        LIMIT 20
+      SELECT ?dist ?format ?url
+      WHERE {
+        ?dist a <http://dati.gov.it/onto/dcatapit#Distribution> .
+        { <${safeUri}> dcat:distribution ?dist } UNION { ?dist isDistributionOf <${safeUri}> } .
+        OPTIONAL { ?dist dct:format ?format }
+        OPTIONAL { ?dist dcat:downloadURL ?url }
+      }
+      LIMIT 20
     `;
 
-    try {
-      const details = await executeSparql(query);
-      const distributions = await executeSparql(distQuery);
+    return executeTool("explore_dataset", { datasetUri }, async () => {
+      const [details, distributions] = await Promise.all([
+        executeSparql(metadataQuery),
+        executeSparql(distQuery),
+      ]);
 
-      await logUsage("explore_dataset", { datasetUri }, "Success");
       return {
-        content: [{
-          type: "text", text: JSON.stringify({
-            metadata: compressSparqlResult(details),
-            distributions: compressSparqlResult(distributions)
-          })
-        }],
+        success: true,
+        data: {
+          metadata: compressSparqlResult(details),
+          distributions: compressSparqlResult(distributions),
+        },
+        rowCount: (details.results?.bindings?.length ?? 0) +
+          (distributions.results?.bindings?.length ?? 0),
       };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    });
   }
 );
 
-// ------------------------------------------------------------------
-// 4. INTELLIGENT TOOLS (Advanced)
-// Smart Tool: Search Concepts
-server.tool(
+// -----------------------------------------------------------------------------
+// GROUP F: Intelligent Tools
+// -----------------------------------------------------------------------------
+
+server.registerTool(
   "search_concepts",
-  "Fuzzy search for concepts/classes/properties by keyword. Use this when you don't know the exact URI.",
   {
-    keyword: z.string().describe("The search term (e.g. 'amministrazione')"),
-    limit: z.number().optional().default(10),
+    title: "Search Concepts",
+    description: `Fuzzy search for concepts/classes/properties by keyword.
+
+**Args:**
+- keyword: Search term (e.g. 'amministrazione')
+- limit: Maximum results (default: 10)
+
+**Returns:**
+- Matching subjects with type and label
+
+**Use when:** You don't know the exact URI of a concept.`,
+    inputSchema: {
+      keyword: z.string().describe("The search term (e.g. 'amministrazione')"),
+      limit: z.number().optional().default(10),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ keyword, limit }) => {
     const safeKeyword = sanitizeSparqlString(keyword);
@@ -617,32 +916,40 @@ server.tool(
       }
       LIMIT ${limit}
     `;
-
-    try {
-      const result = await executeSparql(query);
-      await logUsage("search_concepts", { keyword, limit }, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    return executeSparqlTool("search_concepts", { keyword, limit }, query);
   }
 );
 
-// Smart Tool: Deep Concept Inspection
-server.tool(
+server.registerTool(
   "inspect_concept",
-  "Get a comprehensive profile of a concept: definition, hierarchy, usage, and neighbors.",
   {
-    uri: z.string().describe("The URI of the concept to inspect"),
+    title: "Inspect Concept",
+    description: `Get a comprehensive profile of a concept.
+
+**Args:**
+- uri: URI of the concept to inspect
+
+**Returns:**
+- definition: Literal properties of the concept
+- hierarchy: Type, parents (superclasses), and children (subclasses)
+- usage: Instance count
+- incoming: Properties pointing to instances of this type
+- outgoing: Properties used by instances of this type
+
+**Note:** All 5 queries run in parallel for performance.`,
+    inputSchema: {
+      uri: z.string().describe("The URI of the concept to inspect"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ uri }) => {
     const safeUri = sanitizeSparqlUri(uri);
-    const queries = {
+    const queries: Record<string, string> = {
       definition: `
         SELECT ?p ?o WHERE { <${safeUri}> ?p ?o . FILTER(ISLITERAL(?o)) }
       `,
@@ -671,39 +978,57 @@ server.tool(
           ?s ?p ?o .
           OPTIONAL { ?o a ?oType }
         } LIMIT 20
-      `
+      `,
     };
 
-    try {
+    return executeTool("inspect_concept", { uri }, async () => {
       const entries = Object.entries(queries);
       const sparqlResults = await Promise.all(
         entries.map(([, q]) => executeSparql(q))
       );
-      const results: Record<string, any> = {};
-      entries.forEach(([key], i) => {
-        results[key] = compressSparqlResult(sparqlResults[i]);
-      });
 
-      await logUsage("inspect_concept", { uri }, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(results) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+      const results: Record<string, CompressedResult> = {};
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const sparqlResult = sparqlResults[i];
+        if (entry && sparqlResult) {
+          results[entry[0]] = compressSparqlResult(sparqlResult);
+        }
+      }
+
+      const totalRows = sparqlResults.reduce(
+        (sum, r) => sum + (r?.results?.bindings?.length ?? 0),
+        0
+      );
+
+      return { success: true, data: results, rowCount: totalRows };
+    });
   }
 );
 
-// Smart Tool: Relationship Discovery
-server.tool(
+server.registerTool(
   "find_relations",
-  "Find how two concepts are connected (direct link or via 1 intermediate).",
   {
-    sourceUri: z.string(),
-    targetUri: z.string(),
+    title: "Find Relations",
+    description: `Find how two concepts are connected.
+
+**Args:**
+- sourceUri: URI of the source concept
+- targetUri: URI of the target concept
+
+**Returns:**
+- Direct connections (single predicate)
+- 1-hop paths (source -> intermediate -> target)`,
+    inputSchema: {
+      sourceUri: z.string().describe("URI of the source concept"),
+      targetUri: z.string().describe("URI of the target concept"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ sourceUri, targetUri }) => {
     const safeSource = sanitizeSparqlUri(sourceUri);
@@ -724,31 +1049,35 @@ server.tool(
       }
       LIMIT 10
     `;
-
-    try {
-      const result = await executeSparql(query);
-      await logUsage("find_relations", { sourceUri, targetUri }, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(compressSparqlResult(result)) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    return executeSparqlTool("find_relations", { sourceUri, targetUri }, query);
   }
 );
 
-// Smart Tool: Suggest Improvements / Heuristics
-server.tool(
+server.registerTool(
   "suggest_improvements",
-  "Analyze the ontology for structural issues (lonely classes, cycles, etc).",
   {
-    limit: z.number().optional().default(20),
+    title: "Suggest Improvements",
+    description: `Analyze the ontology for structural issues.
+
+**Args:**
+- limit: Maximum issues per category (default: 20)
+
+**Returns:**
+- possible_cycles: Classes with mutual rdfs:subClassOf
+- unused_classes: Classes with no instances and no subclasses
+
+**Note:** Both analyses run in parallel.`,
+    inputSchema: {
+      limit: z.number().optional().default(20),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ limit }) => {
-    // 1. Lonely Classes (No instances, no subclasses)
     const lonelyQuery = `
       SELECT ?class (COUNT(?s) as ?instances)
       WHERE {
@@ -760,7 +1089,6 @@ server.tool(
       LIMIT ${limit}
     `;
 
-    // 2. Potential Cycles (A subClassOf B, B subClassOf A) - Simple 2-step check
     const cycleQuery = `
       SELECT ?a ?b
       WHERE {
@@ -771,112 +1099,152 @@ server.tool(
       LIMIT ${limit}
     `;
 
-    try {
-      const lonely = await executeSparql(lonelyQuery);
-      const cycles = await executeSparql(cycleQuery);
+    return executeTool("suggest_improvements", { limit }, async () => {
+      const [lonely, cycles] = await Promise.all([
+        executeSparql(lonelyQuery),
+        executeSparql(cycleQuery),
+      ]);
 
-      await logUsage("suggest_improvements", { limit }, "Success");
       return {
-        content: [{
-          type: "text", text: JSON.stringify({
-            possible_cycles: compressSparqlResult(cycles),
-            unused_classes: compressSparqlResult(lonely)
-          })
-        }],
+        success: true,
+        data: {
+          possible_cycles: compressSparqlResult(cycles),
+          unused_classes: compressSparqlResult(lonely),
+        },
+        rowCount: (lonely.results?.bindings?.length ?? 0) +
+          (cycles.results?.bindings?.length ?? 0),
       };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+    });
   }
 );
 
 
 
 
-// ------------------------------------------------------------------
-// 5. META-TOOLS (Continuous Improvement)
-// ------------------------------------------------------------------
-
-server.tool(
+server.registerTool(
   "preview_distribution",
-  "Download and preview the first 10 rows of a distribution (CSV/JSON only). Use this to see actual data.",
   {
-    url: z.string().describe("The download URL of the distribution"),
+    title: "Preview Distribution",
+    description: `Download and preview the first rows of a distribution file.
+
+**Args:**
+- url: Download URL of the distribution (CSV or JSON)
+
+**Returns:**
+- Preview of first 10-15 rows/items of data
+
+**Supported formats:** CSV, JSON (auto-detected by content-type or extension)
+**Timeout:** 10 seconds`,
+    inputSchema: {
+      url: z.string().describe("The download URL of the distribution"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ url }) => {
-    try {
+    return executeTool("preview_distribution", { url }, async () => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch distribution: ${response.status} ${response.statusText}`);
-      }
-
-      const contentType = response.headers.get("content-type") || "";
-      const text = await response.text();
-
-      let preview = "";
-
-      if (contentType.includes("json") || url.endsWith(".json")) {
-        try {
-          const json = JSON.parse(text);
-          const array = Array.isArray(json) ? json : (json.results || json.data || [json]);
-          preview = JSON.stringify(array.slice(0, 10), null, 2);
-        } catch (e) {
-          preview = text.slice(0, 2000) + "\n... (truncated)";
+        if (!response.ok) {
+          return {
+            success: false,
+            error: `Failed to fetch distribution: ${response.status} ${response.statusText}`,
+          };
         }
-      } else {
-        // Assume CSV or text
-        const lines = text.split("\n").slice(0, 15); // Get a few more to handle headers
-        preview = lines.join("\n");
-      }
 
-      await logUsage("preview_distribution", { url }, "Success");
-      return {
-        content: [{ type: "text", text: `Preview of ${url}:\n\n${preview}` }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error: ${error.message}` }],
-        isError: true,
-      };
-    }
+        const contentType = response.headers.get("content-type") || "";
+        const text = await response.text();
+
+        let preview = "";
+
+        if (contentType.includes("json") || url.endsWith(".json")) {
+          try {
+            const json = JSON.parse(text) as unknown;
+            const jsonObj = json as Record<string, unknown>;
+            const array = Array.isArray(json) ? json : (jsonObj.results || jsonObj.data || [json]);
+            preview = JSON.stringify((array as unknown[]).slice(0, 10), null, 2);
+          } catch {
+            preview = text.slice(0, 2000) + "\n... (truncated)";
+          }
+        } else {
+          const lines = text.split("\n").slice(0, 15);
+          preview = lines.join("\n");
+        }
+
+        return {
+          success: true,
+          data: `Preview of ${url}:\n\n${preview}`,
+        };
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    });
   }
 );
 
-server.tool(
-  "suggest_new_tools",
-  "Analyze usage logs to suggest new potential tools based on frequent RAW queries.",
-  {},
-  async () => {
-    if (!existsSync(LOG_FILE)) {
-      return { content: [{ type: "text", text: "No usage logs found yet." }] };
-    }
+// -----------------------------------------------------------------------------
+// GROUP G: Meta Tools
+// -----------------------------------------------------------------------------
 
-    try {
+/** Log entry type for parsing usage logs */
+interface LogEntry {
+  timestamp?: string;
+  tool?: string;
+  args?: { query?: string };
+  summary?: string;
+}
+
+server.registerTool(
+  "suggest_new_tools",
+  {
+    title: "Suggest New Tools",
+    description: `Analyze usage logs to suggest new specialized tools.
+
+**Args:** None
+
+**Returns:**
+- List of recommendations based on frequently queried types in raw SPARQL
+
+**Note:** Requires at least 2 queries for the same type to suggest a tool.`,
+    inputSchema: {},
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  },
+  async () => {
+    return executeTool<unknown>("suggest_new_tools", {}, async (): Promise<ToolResult<unknown>> => {
+      if (!existsSync(LOG_FILE)) {
+        return { success: true, data: { message: "No usage logs found yet." } };
+      }
+
       const data = await readFile(LOG_FILE, "utf-8");
       const lines = data.trim().split("\n");
 
-      // Analyze RAW queries to find frequent patterns
       const rawQueries: string[] = [];
-
       for (const line of lines) {
         if (!line.trim()) continue;
         try {
-          const entry = JSON.parse(line);
-          if (entry.tool === "query_sparql" && entry.args.query) {
+          const entry = JSON.parse(line) as LogEntry;
+          if (entry.tool === "query_sparql" && entry.args?.query) {
             rawQueries.push(entry.args.query);
           }
-        } catch (e) { }
+        } catch {
+          // Skip malformed lines
+        }
       }
 
-      // Heuristic: Check for common patterns in RAW queries (e.g. "?s a <URI>")
       const typeCounts: Record<string, number> = {};
       const regexType = /\ba\s+<([^>]+)>/g;
 
@@ -891,96 +1259,95 @@ server.tool(
       }
 
       const suggestions = Object.entries(typeCounts)
-        .filter(([_, count]) => count >= 2) // Threshold
+        .filter(([, count]) => count >= 2)
         .map(([uri, count]) => ({
           type: "New Tool Recommendation",
-          reason: `You frequently query for instances of <${uri}> (${count} times).`, // Escaped < and > for markdown safety in my mind, but logic is clean
-          suggestion: `Consider adding a specialized tool: list_${uri.split('/').pop()?.toLowerCase()}`
+          reason: `You frequently query for instances of <${uri}> (${count} times).`,
+          suggestion: `Consider adding a specialized tool: list_${uri.split("/").pop()?.toLowerCase()}`,
         }));
 
       if (suggestions.length === 0) {
-        return { content: [{ type: "text", text: "No clear patterns found in RAW queries yet to suggest new tools." }] };
+        return {
+          success: true,
+          data: { message: "No clear patterns found in RAW queries yet to suggest new tools." },
+        };
       }
 
-      await logUsage("suggest_new_tools", {}, "Success");
-      return {
-        content: [{ type: "text", text: JSON.stringify(suggestions, null, 2) }],
-      };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error analyzing usage: ${error.message}` }],
-        isError: true,
-      };
-    }
+      return { success: true, data: suggestions };
+    });
   }
 );
 
-// Tool: Analyze Usage (Meta-optimization)
-server.tool(
+server.registerTool(
   "analyze_usage",
-  "Analyze the server's own usage logs to identify patterns, errors, or frequent queries.",
-  {},
-  async () => {
-    if (!existsSync(LOG_FILE)) {
-      return { content: [{ type: "text", text: "No usage logs found yet." }] };
-    }
+  {
+    title: "Analyze Usage",
+    description: `Analyze the server's own usage logs for patterns and errors.
 
-    try {
+**Args:** None
+
+**Returns:**
+- total_calls: Total number of tool invocations
+- tool_breakdown: Calls per tool
+- recent_errors: Last 5 distinct errors
+- last_activity: Most recent timestamp`,
+    inputSchema: {},
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  },
+  async () => {
+    return executeTool<unknown>("analyze_usage", {}, async (): Promise<ToolResult<unknown>> => {
+      if (!existsSync(LOG_FILE)) {
+        return { success: true, data: { message: "No usage logs found yet." } };
+      }
+
       const data = await readFile(LOG_FILE, "utf-8");
       const lines = data.trim().split("\n");
-      const stats = {
-        total_calls: 0,
-        tool_usage: {} as Record<string, number>,
-        errors: [] as string[],
-        recent_timestamps: [] as string[] // Last 5
-      };
+
+      let totalCalls = 0;
+      const toolUsage: Record<string, number> = {};
+      const errors: string[] = [];
+      const recentTimestamps: string[] = [];
 
       for (const line of lines) {
         if (!line.trim()) continue;
         try {
-          const entry = JSON.parse(line);
-          stats.total_calls++;
+          const entry = JSON.parse(line) as LogEntry;
+          totalCalls++;
 
-          // Count tools
           if (entry.tool) {
-            stats.tool_usage[entry.tool] = (stats.tool_usage[entry.tool] || 0) + 1;
+            toolUsage[entry.tool] = (toolUsage[entry.tool] || 0) + 1;
           }
 
-          // Track errors (heuristic: summary contains "Error")
-          if (entry.summary && entry.summary.startsWith("Error")) {
-            stats.errors.push(`[${entry.tool}] ${entry.summary}`);
+          if (entry.summary?.startsWith("Error")) {
+            errors.push(`[${entry.tool}] ${entry.summary}`);
           }
 
-          // Keep recent timestamps
-          stats.recent_timestamps.push(entry.timestamp);
-        } catch (e) {
-          // Ignore parse errors in log
+          if (entry.timestamp) {
+            recentTimestamps.push(entry.timestamp);
+          }
+        } catch {
+          // Skip malformed lines
         }
       }
 
-      // Keep only last 5 timestamps
-      stats.recent_timestamps = stats.recent_timestamps.slice(-5);
-
-      // Summarize errors (top 5 distinct)
-      const distinctErrors = [...new Set(stats.errors)].slice(0, 5);
+      const distinctErrors = [...new Set(errors)].slice(0, 5);
+      const lastActivity = recentTimestamps.slice(-5).pop();
 
       return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            total_calls: stats.total_calls,
-            tool_breakdown: stats.tool_usage,
-            recent_errors: distinctErrors,
-            last_activity: stats.recent_timestamps.pop()
-          }, null, 2)
-        }],
+        success: true,
+        data: {
+          total_calls: totalCalls,
+          tool_breakdown: toolUsage,
+          recent_errors: distinctErrors,
+          last_activity: lastActivity,
+        },
       };
-    } catch (error: any) {
-      return {
-        content: [{ type: "text", text: `Error analyzing logs: ${error.message}` }],
-        isError: true,
-      };
-    }
+    });
   }
 );
 
