@@ -1192,7 +1192,262 @@ server.registerTool(
 );
 
 // -----------------------------------------------------------------------------
-// GROUP G: Meta Tools
+// GROUP G: Property Tools (based on usage patterns)
+// -----------------------------------------------------------------------------
+
+server.registerTool(
+  "list_properties",
+  {
+    title: "List Properties",
+    description: `List ObjectProperty and DatatypeProperty defined in an ontology or globally.
+
+**Args:**
+- ontologyUri: (optional) URI of the ontology to filter by
+- propertyType: (optional) "object", "datatype", or "both" (default: "both")
+- limit: Maximum results (default: 50)
+
+**Returns:**
+- List of properties with domain, range, and label
+
+**Examples:**
+- No args: All properties (top 50)
+- ontologyUri="https://w3id.org/italia/onto/CPV": Properties from CPV ontology`,
+    inputSchema: {
+      ontologyUri: z.string().optional().describe("URI of ontology to filter by"),
+      propertyType: z.enum(["object", "datatype", "both"]).optional().default("both"),
+      limit: z.number().optional().default(50),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ ontologyUri, propertyType, limit }) => {
+    const typeFilter = propertyType === "object"
+      ? "VALUES ?type { owl:ObjectProperty }"
+      : propertyType === "datatype"
+      ? "VALUES ?type { owl:DatatypeProperty }"
+      : "VALUES ?type { owl:ObjectProperty owl:DatatypeProperty }";
+
+    const uriFilter = ontologyUri
+      ? `FILTER(STRSTARTS(STR(?prop), "${sanitizeSparqlUri(ontologyUri)}"))`
+      : "";
+
+    const query = `
+      SELECT DISTINCT ?prop ?type ?label ?domain ?range
+      WHERE {
+        ${typeFilter}
+        ?prop a ?type .
+        OPTIONAL { ?prop rdfs:label ?label . FILTER(LANG(?label) = "it" || LANG(?label) = "") }
+        OPTIONAL { ?prop rdfs:domain ?domain }
+        OPTIONAL { ?prop rdfs:range ?range }
+        ${uriFilter}
+      }
+      ORDER BY ?prop
+      LIMIT ${limit}
+    `;
+    return executeSparqlTool("list_properties", { ontologyUri, propertyType, limit }, query);
+  }
+);
+
+server.registerTool(
+  "get_property_details",
+  {
+    title: "Get Property Details",
+    description: `Get comprehensive details of a specific property.
+
+**Args:**
+- propertyUri: URI of the property
+
+**Returns:**
+- type: ObjectProperty or DatatypeProperty
+- domain: Class(es) this property applies to
+- range: Class or datatype of values
+- label: Human-readable name
+- comment: Description
+- inverse: Inverse property if defined
+- subPropertyOf: Parent property if defined
+- functional: Whether it's a FunctionalProperty`,
+    inputSchema: {
+      propertyUri: z.string().describe("URI of the property to inspect"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ propertyUri }) => {
+    const safeUri = sanitizeSparqlUri(propertyUri);
+    const query = `
+      SELECT ?p ?o
+      WHERE {
+        <${safeUri}> ?p ?o .
+        FILTER(?p IN (
+          rdf:type,
+          rdfs:label,
+          rdfs:comment,
+          rdfs:domain,
+          rdfs:range,
+          rdfs:subPropertyOf,
+          owl:inverseOf,
+          owl:equivalentProperty
+        ) || ?p = rdf:type && ?o IN (owl:FunctionalProperty, owl:InverseFunctionalProperty, owl:SymmetricProperty, owl:TransitiveProperty))
+      }
+    `;
+    return executeSparqlTool("get_property_details", { propertyUri }, query);
+  }
+);
+
+server.registerTool(
+  "browse_vocabulary",
+  {
+    title: "Browse Vocabulary",
+    description: `Browse concepts in a vocabulary with pagination support.
+
+**Args:**
+- schemeUri: URI of the ConceptScheme
+- limit: Items per page (default: 50)
+- offset: Items to skip (default: 0)
+- keyword: (optional) Filter by label
+
+**Returns:**
+- concepts: List of concepts with code and label
+- pagination: Total count, offset, has_more
+
+**Use for:** Large vocabularies that need pagination (e.g., ICD codes, municipalities)`,
+    inputSchema: {
+      schemeUri: z.string().describe("URI of the ConceptScheme"),
+      limit: z.number().optional().default(50),
+      offset: z.number().optional().default(0),
+      keyword: z.string().optional().describe("Optional keyword filter"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ schemeUri, limit, offset, keyword }) => {
+    const safeSchemeUri = sanitizeSparqlUri(schemeUri);
+    const keywordFilter = keyword
+      ? `FILTER(REGEX(STR(?label), "${sanitizeSparqlString(keyword)}", "i"))`
+      : "";
+
+    const dataQuery = `
+      SELECT ?concept ?code ?label
+      WHERE {
+        ?concept skos:inScheme <${safeSchemeUri}> .
+        ?concept a skos:Concept .
+        OPTIONAL { ?concept skos:notation ?code }
+        OPTIONAL { ?concept skos:prefLabel|rdfs:label ?label . FILTER(LANG(?label) = "it" || LANG(?label) = "") }
+        ${keywordFilter}
+      }
+      ORDER BY ?code ?label
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `;
+
+    const countQuery = `
+      SELECT (COUNT(?concept) AS ?total)
+      WHERE {
+        ?concept skos:inScheme <${safeSchemeUri}> .
+        ?concept a skos:Concept .
+        ${keyword ? `
+          ?concept skos:prefLabel|rdfs:label ?label .
+          FILTER(REGEX(STR(?label), "${sanitizeSparqlString(keyword)}", "i"))
+        ` : ""}
+      }
+    `;
+
+    return executeTool("browse_vocabulary", { schemeUri, limit, offset, keyword }, async () => {
+      const [dataResult, countResult] = await Promise.all([
+        executeSparql(dataQuery),
+        executeSparql(countQuery),
+      ]);
+
+      const concepts = compressSparqlResult(dataResult);
+      const count = dataResult.results?.bindings?.length ?? 0;
+      const total = parseInt(countResult.results?.bindings?.[0]?.total?.value ?? "0", 10);
+
+      return {
+        success: true,
+        data: {
+          concepts,
+          pagination: {
+            total,
+            count,
+            offset,
+            has_more: offset + count < total,
+            next_offset: offset + count < total ? offset + count : null,
+          },
+        },
+        rowCount: count,
+      };
+    });
+  }
+);
+
+server.registerTool(
+  "describe_resource",
+  {
+    title: "Describe Resource",
+    description: `Get all triples for a resource (Concise Bounded Description).
+
+**Args:**
+- uri: URI of the resource
+- depth: 1 for direct properties only, 2 to include linked resources (default: 1)
+
+**Returns:**
+- All properties and values of the resource
+
+**Use when:** You need the complete RDF description of a specific resource.`,
+    inputSchema: {
+      uri: z.string().describe("URI of the resource"),
+      depth: z.number().optional().default(1).describe("1 for direct, 2 for linked resources"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ uri, depth }) => {
+    const safeUri = sanitizeSparqlUri(uri);
+
+    let query: string;
+    if (depth === 2) {
+      query = `
+        SELECT ?p ?o ?p2 ?o2
+        WHERE {
+          <${safeUri}> ?p ?o .
+          OPTIONAL {
+            FILTER(ISURI(?o))
+            ?o ?p2 ?o2 .
+          }
+        }
+        LIMIT 200
+      `;
+    } else {
+      query = `
+        SELECT ?p ?o
+        WHERE {
+          <${safeUri}> ?p ?o .
+        }
+        LIMIT 100
+      `;
+    }
+    return executeSparqlTool("describe_resource", { uri, depth }, query);
+  }
+);
+
+// -----------------------------------------------------------------------------
+// GROUP H: Meta Tools
 // -----------------------------------------------------------------------------
 
 /** Log entry type for parsing usage logs */
