@@ -1,4 +1,4 @@
-[![deepwiki](https://deepwiki.com/mfortini/schema-gov-it-mcp)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/mfortini/schema-gov-it-mcp)
 
 # Schema.gov.it MCP Server
 
