@@ -1,3 +1,5 @@
+[![deepwiki](https://deepwiki.com/mfortini/schema-gov-it-mcp)
+
 # Schema.gov.it MCP Server
 
 Un server MCP (Model Context Protocol) avanzato per interagire semanticamente con il catalogo dati di [schema.gov.it](https://schema.gov.it).
