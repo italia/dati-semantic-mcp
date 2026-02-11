@@ -60,13 +60,13 @@ npx schema-gov-it-mcp
 Puoi installare globalmente direttamente dal repository:
 
 ```bash
-npm install -g git+https://github.com/mfortini/schema-gov-it-mcp.git
+npm install -g git+https://github.com/italia/dati-semantic-mcp.git
 ```
 Poi usa `schema-gov-it-mcp` come comando.
 
 ### 3. Configurazione per Claude Code
 ```bash
-claude mcp add schema-gov-it -- npx -y github:mfortini/schema-gov-it-mcp
+claude mcp add schema-gov-it -- npx -y github:italia/dati-semantic-mcp
 ```
 
 Oppure aggiungi manualmente a `~/.claude.json`:
@@ -76,7 +76,7 @@ Oppure aggiungi manualmente a `~/.claude.json`:
   "mcpServers": {
     "schema-gov-it": {
       "command": "npx",
-      "args": ["-y", "github:mfortini/schema-gov-it-mcp"]
+      "args": ["-y", "github:italia/dati-semantic-mcp"]
     }
   }
 }
@@ -84,8 +84,8 @@ Oppure aggiungi manualmente a `~/.claude.json`:
 
 ### 4. Installazione Locale (Sviluppo)
 ```bash
-git clone https://github.com/mfortini/schema-gov-it-mcp.git
-cd schema-gov-it-mcp
+git clone https://github.com/italia/dati-semantic-mcp.git
+cd dati-semantic-mcp
 npm install
 npm run build   # Automatico via prepare, ma puoi lanciarlo manualmente
 node dist/index.js
