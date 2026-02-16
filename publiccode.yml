@@ -1,0 +1,39 @@
+publiccodeYmlVersion: 0.5.0
+name: Schema.gov.it MCP Server
+url: https://github.com/italia/dati-semantic-mcp
+releaseDate: 2026-02-15
+platforms:
+  - linux
+  - windows
+  - ios
+developmentStatus: beta
+softwareType: addon
+description:
+  it:
+    localisedName: Schema.gov.it MCP Server
+    shortDescription: Un server MCP (Model Context Protocol) avanzato per interagire
+      semanticamente con il catalogo dati di schema.gov.it.
+    longDescription: >-
+      Un server MCP (Model Context Protocol) avanzato per interagire
+      semanticamente con il catalogo dati di schema.gov.it.
+
+
+      Questo server permette agli agenti AI (come Claude Code) di esplorare
+      ontologie, analizzare la copertura dei dati, verificare la qualità e
+      scoprire connessioni tra concetti in modo intelligente.
+    documentation: https://github.com/italia/dati-semantic-mcp/blob/main/README.md
+    features:
+      - MCP
+      - AI
+legal:
+  license: MIT
+maintenance:
+  type: community
+  contacts:
+    - name: Matteo Fortini
+      email: matteo.fortini@gmail.com
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - it
+    - en
