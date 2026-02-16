@@ -64,7 +64,9 @@ npm install -g git+https://github.com/italia/dati-semantic-mcp.git
 ```
 Poi usa `schema-gov-it-mcp` come comando.
 
-### 3. Configurazione per Claude Code
+### 3. Configurazione 
+
+#### 3.1 Configurazione per Claude Code
 ```bash
 claude mcp add schema-gov-it -- npx -y github:italia/dati-semantic-mcp
 ```
@@ -77,6 +79,30 @@ Oppure aggiungi manualmente a `~/.claude.json`:
     "schema-gov-it": {
       "command": "npx",
       "args": ["-y", "github:italia/dati-semantic-mcp"]
+    }
+  }
+}
+```
+
+#### 3.2 Configurazione per VS Code/ium
+
+```json
+# In .vscode/mcp.json
+{
+  "inputs": [
+    // The "inputs" section defines the inputs required for the MCP server configuration.
+    {
+      "type": "promptString"
+    }
+  ],
+  "servers": {
+    // The "servers" section defines the MCP servers you want to use.
+    "fetch": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "github:italia/dati-semantic-mcp"
+      ]
     }
   }
 }
