@@ -24,7 +24,7 @@ Single-file implementation (`src/index.ts`) using:
 - `zod` for parameter validation
 - Direct `fetch` calls to the SPARQL endpoint
 
-### Tool Hierarchy (19 tools)
+### Tool Hierarchy (30 tools)
 
 **Base Operations:**
 - `query_sparql` - Raw SPARQL execution with automatic prefix injection
@@ -39,10 +39,13 @@ Single-file implementation (`src/index.ts`) using:
 **Data Model (Ontologies):**
 - `list_ontologies` - List available ontologies with titles
 - `explore_ontology` - List classes and properties in a specific ontology
+- `list_properties` - List ObjectProperty and DatatypeProperty with domain/range
+- `get_property_details` - Full property details (domain, range, inverse, functional)
 
 **Controlled Vocabularies:**
 - `list_vocabularies` - List ConceptSchemes with instance counts
 - `search_in_vocabulary` - Search concepts within a specific vocabulary
+- `browse_vocabulary` - Paginated browsing of large vocabularies
 
 **Catalogs & Datasets:**
 - `list_datasets` - List DCAT-AP_IT datasets
@@ -54,6 +57,18 @@ Single-file implementation (`src/index.ts`) using:
 - `inspect_concept` - Deep profiling (definition, hierarchy, usage, relations)
 - `find_relations` - Discover paths between two concepts (direct or 1-hop)
 - `suggest_improvements` - Detect orphan classes and cycles
+- `describe_resource` - Concise Bounded Description (all RDF triples for a resource)
+
+**Territorial (OntoPiA):**
+- `list_municipalities` - Italian municipalities with ISTAT/Belfiore codes (paginated)
+- `list_provinces` - Italian provinces with codes
+- `list_identifiers` - CLV Identifier resources by type
+
+**Linked SPARQL Endpoints:**
+- `list_linked_endpoints` - Discover `dcat:DataService` endpoints in the catalog
+- `query_external_endpoint` - Execute SPARQL against any public HTTPS endpoint
+- `find_external_alignments` - Find owl:sameAs / skos:*Match links toward external systems
+- `explore_external_endpoint` - Explore classes/counts of an external SPARQL endpoint
 
 **Meta:**
 - `suggest_new_tools` - Analyze usage logs to suggest new specialized tools
@@ -61,20 +76,25 @@ Single-file implementation (`src/index.ts`) using:
 
 ### Key Patterns
 
-**Automatic SPARQL Prefixes:** All queries receive these prefixes automatically:
+**Automatic SPARQL Prefixes:** Internal queries receive these prefixes automatically:
 ```
-rdf, rdfs, owl, skos, dct, xsd, dcat, foaf
+rdf, rdfs, owl, skos, dct, xsd, dcat, foaf, clv, cpv, l0, sm
 ```
+External endpoint queries do NOT inject prefixes by default (`injectPrefixes: false`).
 
-**Input Sanitization:** All user-provided parameters are sanitized before SPARQL interpolation (string escaping for literals, URI validation for URIs).
+**Input Sanitization:** All user-provided parameters are sanitized before SPARQL interpolation (string escaping for literals, URI validation for URIs via `sanitizeSparqlUri()`).
 
 **Result Compression:** Large results (>5 items) use tabular format (headers + rows) for token efficiency.
 
 **Usage Logging:** All tool calls are logged to `usage_log.jsonl` with timestamp, tool name, args, and result status.
 
+**Timeout:** External endpoint queries use a 15-second `AbortController` timeout. Internal queries use 30 seconds. Implemented via the `executeSparql(query, endpoint?, injectPrefixes?, timeoutMs?)` signature.
+
 ### SPARQL Endpoint
 
-Target: `https://schema.gov.it/sparql`
+Primary: `https://schema.gov.it/sparql`
+
+External endpoints (via Linked SPARQL Endpoints tools): any public HTTPS SPARQL endpoint, validated by `sanitizeSparqlUri()` before use.
 
 The endpoint hosts Italian public administration ontologies including concepts for organizations, services, professional registers, and controlled vocabularies.
 
