@@ -133,22 +133,35 @@ PREFIX l0: <https://w3id.org/italia/onto/l0/>
 PREFIX sm: <https://w3id.org/italia/onto/SM/>
 `;
 
-async function executeSparql(query: string): Promise<SparqlResult> {
-  const fullQuery = PREFIXES + "\n" + query;
-  const response = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Accept": "application/sparql-results+json",
-    },
-    body: new URLSearchParams({ query: fullQuery }),
-  });
+async function executeSparql(
+  query: string,
+  endpoint: string = ENDPOINT,
+  injectPrefixes: boolean = true,
+  timeoutMs: number = 30000
+): Promise<SparqlResult> {
+  const fullQuery = injectPrefixes ? PREFIXES + "\n" + query : query;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!response.ok) {
-    throw new Error(`SPARQL request failed: ${response.status} ${response.statusText}`);
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/sparql-results+json",
+      },
+      body: new URLSearchParams({ query: fullQuery }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`SPARQL request failed: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json() as Promise<SparqlResult>;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return response.json() as Promise<SparqlResult>;
 }
 
 // =============================================================================
@@ -1951,6 +1964,223 @@ server.registerTool(
   }
 );
 
+
+// =============================================================================
+// GROUP J: Linked SPARQL Endpoints
+// =============================================================================
+
+server.registerTool(
+  "list_linked_endpoints",
+  {
+    title: "List Linked SPARQL Endpoints",
+    description: `Discover SPARQL endpoints referenced in the schema.gov.it catalog via dcat:DataService.
+
+**Args:** None
+
+**Returns:**
+- List of data services with endpoint URL, title, description, and conformsTo standard
+
+**Use when:** Exploring what external SPARQL endpoints are connected to the Italian PA semantic catalog.`,
+    inputSchema: {},
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async () => {
+    const query = `
+      SELECT ?service ?endpointURL ?title ?description ?conformsTo
+      WHERE {
+        ?service a dcat:DataService .
+        ?service dcat:endpointURL ?endpointURL .
+        OPTIONAL { ?service dct:title ?title }
+        OPTIONAL { ?service dct:description ?description }
+        OPTIONAL { ?service dct:conformsTo ?conformsTo }
+      }
+    `;
+    return executeSparqlTool("list_linked_endpoints", {}, query);
+  }
+);
+
+server.registerTool(
+  "query_external_endpoint",
+  {
+    title: "Query External SPARQL Endpoint",
+    description: `Execute a SPARQL query against any public HTTPS SPARQL endpoint.
+
+**Args:**
+- endpointUrl: URL of the target SPARQL endpoint (must be HTTPS)
+- query: SPARQL query to execute
+- injectPrefixes: Whether to inject schema.gov.it standard prefixes (default: false)
+
+**Returns:**
+- Compressed SPARQL results in the same format as internal tools
+
+**Security:** Only HTTPS endpoints are allowed. Requests timeout after 15 seconds.
+
+**Examples:**
+- Query DBpedia: endpointUrl="https://dbpedia.org/sparql"
+- Query EU Publications Office: endpointUrl="https://publications.europa.eu/webapi/rdf/sparql"`,
+    inputSchema: {
+      endpointUrl: z.string().describe("URL of the target SPARQL endpoint (HTTPS required)"),
+      query: z.string().describe("SPARQL query to execute"),
+      injectPrefixes: z.boolean().optional().default(false).describe("Whether to inject schema.gov.it standard prefixes (rdf, rdfs, owl, skos, dct...)"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ endpointUrl, query, injectPrefixes }) => {
+    return executeTool("query_external_endpoint", { endpointUrl, query, injectPrefixes }, async () => {
+      const safeEndpoint = sanitizeSparqlUri(endpointUrl);
+      const result = await executeSparql(query, safeEndpoint, injectPrefixes ?? false, 15000);
+      const rowCount = result.results?.bindings?.length ?? 0;
+      const compressed = compressSparqlResult(result);
+      return { success: true, data: compressed, rowCount };
+    });
+  }
+);
+
+server.registerTool(
+  "find_external_alignments",
+  {
+    title: "Find External Alignments",
+    description: `Find all alignment links from a concept in schema.gov.it toward external resources.
+
+**Args:**
+- uri: URI of the concept in schema.gov.it
+
+**Returns:**
+- concept: The queried URI
+- alignments: List of external URIs with relation type and domain (base URL)
+
+**Alignment types searched:**
+- owl:sameAs (bidirectional)
+- skos:exactMatch
+- skos:closeMatch
+- skos:broadMatch
+- skos:narrowMatch
+
+**Use when:** Understanding how a local concept maps to external systems (Eurostat, DBpedia, EU Publications Office, etc.)`,
+    inputSchema: {
+      uri: z.string().describe("URI of the concept in schema.gov.it"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ uri }) => {
+    return executeTool("find_external_alignments", { uri }, async () => {
+      const safeUri = sanitizeSparqlUri(uri);
+      const query = `
+        SELECT DISTINCT ?target ?relation
+        WHERE {
+          {
+            <${safeUri}> owl:sameAs ?target .
+            BIND("owl:sameAs" AS ?relation)
+            FILTER(isIRI(?target))
+          } UNION {
+            ?target owl:sameAs <${safeUri}> .
+            BIND("owl:sameAs" AS ?relation)
+            FILTER(isIRI(?target))
+          } UNION {
+            <${safeUri}> skos:exactMatch ?target .
+            BIND("skos:exactMatch" AS ?relation)
+            FILTER(isIRI(?target))
+          } UNION {
+            <${safeUri}> skos:closeMatch ?target .
+            BIND("skos:closeMatch" AS ?relation)
+            FILTER(isIRI(?target))
+          } UNION {
+            <${safeUri}> skos:broadMatch ?target .
+            BIND("skos:broadMatch" AS ?relation)
+            FILTER(isIRI(?target))
+          } UNION {
+            <${safeUri}> skos:narrowMatch ?target .
+            BIND("skos:narrowMatch" AS ?relation)
+            FILTER(isIRI(?target))
+          }
+        }
+      `;
+      const result = await executeSparql(query);
+      const bindings = result.results?.bindings ?? [];
+
+      const alignments = bindings.map(b => {
+        const targetUri = b.target?.value ?? "";
+        let domain = "";
+        try {
+          domain = new URL(targetUri).origin;
+        } catch {
+          domain = targetUri;
+        }
+        return {
+          uri: targetUri,
+          relation: b.relation?.value ?? "",
+          domain,
+        };
+      });
+
+      return {
+        success: true,
+        data: { concept: uri, alignments },
+        rowCount: alignments.length,
+      };
+    });
+  }
+);
+
+server.registerTool(
+  "explore_external_endpoint",
+  {
+    title: "Explore External SPARQL Endpoint",
+    description: `Explore the structure of an external SPARQL endpoint: discover its main classes and instance counts.
+
+**Args:**
+- endpointUrl: URL of the SPARQL endpoint to explore (must be HTTPS)
+- limit: Maximum number of classes to return (default: 20)
+
+**Returns:**
+- List of classes with instance counts, ordered by count descending
+
+**Security:** Only HTTPS endpoints are allowed. Requests timeout after 15 seconds.
+
+**Use when:** Getting a quick overview of what data an external endpoint contains before writing detailed queries.`,
+    inputSchema: {
+      endpointUrl: z.string().describe("URL of the SPARQL endpoint to explore (HTTPS required)"),
+      limit: z.number().optional().default(20).describe("Maximum number of classes to return"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+  },
+  async ({ endpointUrl, limit }) => {
+    return executeTool("explore_external_endpoint", { endpointUrl, limit }, async () => {
+      const safeEndpoint = sanitizeSparqlUri(endpointUrl);
+      const query = `
+        SELECT ?class (COUNT(?s) AS ?count)
+        WHERE { ?s a ?class }
+        GROUP BY ?class
+        ORDER BY DESC(?count)
+        LIMIT ${limit}
+      `;
+      const result = await executeSparql(query, safeEndpoint, false, 15000);
+      const rowCount = result.results?.bindings?.length ?? 0;
+      const compressed = compressSparqlResult(result);
+      return { success: true, data: compressed, rowCount };
+    });
+  }
+);
 
 async function main() {
   const transport = new StdioServerTransport();
