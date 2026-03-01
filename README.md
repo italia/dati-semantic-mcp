@@ -8,7 +8,7 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 ## Strumenti disponibili
 
-Il server espone **23 strumenti** organizzati in 8 categorie:
+Il server espone **30 strumenti** organizzati in 8 categorie:
 
 ### 1. Operazioni Base
 *   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint. Utile per esplorazione ad-hoc.
@@ -43,7 +43,13 @@ Il server espone **23 strumenti** organizzati in 8 categorie:
 *   `suggest_improvements`: Euristiche per trovare anomalie strutturali nell'ontologia (classi orfane, cicli).
 *   `describe_resource`: **CBD**. Ottiene tutte le triple di una risorsa (Concise Bounded Description).
 
-### 7. Meta-Ottimizzazione
+### 7. Endpoint SPARQL Collegati
+*   `list_linked_endpoints`: Scopre i `dcat:DataService` referenziati nel catalogo con il loro endpoint SPARQL (`dcat:endpointURL`).
+*   `query_external_endpoint`: Esegue una query SPARQL su qualsiasi endpoint HTTPS pubblico (con timeout 15s e validazione URL).
+*   `find_external_alignments`: Dato un concetto in schema.gov.it, trova tutti i link verso risorse esterne (`owl:sameAs`, `skos:exactMatch`, `skos:closeMatch`, `skos:broadMatch`, `skos:narrowMatch`).
+*   `explore_external_endpoint`: Esplora la struttura di un endpoint SPARQL esterno (classi principali e conteggio istanze).
+
+### 8. Meta-Ottimizzazione
 *   `suggest_new_tools`: Analizza i log delle query RAW e suggerisce nuovi tool specializzati in base all'utilizzo reale.
 *   `analyze_usage`: Analizza i log interni per identificare pattern, errori e query frequenti.
 
@@ -128,12 +134,16 @@ Una volta configurato, puoi chiedere all'agente cose come:
 *   *"Controlla se ci sono sovrapposizioni tra i concetti di Luogo."* (Userà `check_overlaps`)
 *   *"Come posso ottimizzare le mie query?"* (Userà `analyze_usage` sui log)
 *   *"Elenca le ontologie disponibili e mostrami le classi di quella sui Servizi Pubblici."* (Userà `list_ontologies` + `explore_ontology`)
+*   *"Quali endpoint SPARQL sono collegati al catalogo?"* (Userà `list_linked_endpoints`)
+*   *"Questo concetto ha corrispondenze in vocabolari europei?"* (Userà `find_external_alignments`)
+*   *"Esplora cosa contiene l'endpoint SPARQL di Eurostat."* (Userà `explore_external_endpoint`)
 
 ## Note Tecniche
 
-*   **Prefixes Automatici**: Non serve definire `rdf:`, `owl:`, `skos:`, ecc. nelle query. Il server li aggiunge automaticamente.
+*   **Prefixes Automatici**: Non serve definire `rdf:`, `owl:`, `skos:`, ecc. nelle query interne. Il server li aggiunge automaticamente. Per gli endpoint esterni i prefissi non vengono iniettati di default.
 *   **Compressione Token**: Le liste lunghe (> 5 item) vengono restituite in formato tabellare compatto per risparmiare token.
-*   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection.
+*   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection. Gli URL degli endpoint esterni vengono validati (solo HTTPS).
+*   **Timeout**: Le query verso endpoint esterni hanno un timeout di 15 secondi; quelle interne di 30 secondi.
 *   **Logging**: Tutte le chiamate vengono loggate in `usage_log.jsonl` per analisi e miglioramento continuo.
 
 ## Licenza
