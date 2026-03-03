@@ -1,0 +1,22 @@
+#
+# Local build variant for the MCP server.
+#
+# Run with:
+#
+# $ docker compose -f docker-compose.build.yaml up -d mcp
+#
+services:
+  mcp:
+    build: .
+    image: schema-gov-it-mcp:latest
+    container_name: schema-gov-it-mcp
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      - NODE_ENV=production
+      - MCP_TRANSPORT=sse
+      - PORT=3000
+      - HOST=0.0.0.0

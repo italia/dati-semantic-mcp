@@ -1,6 +1,5 @@
 #
-# This docker compose file allows to deploy the MCP server in a container
-#   so it will execute code in a sandboxed environment.
+# This docker compose file runs the published MCP image from GHCR.
 #
 # Run with:
 #
@@ -9,17 +8,9 @@
 # Then configure the MCP client to connect to http://localhost:3000/mcp
 #
 services:
-  dev:
-    image: node:22-alpine
-    volumes:
-    - .:/code
-    working_dir: /code
-    command:
-    - sleep
-    - infinity
   mcp:
-    build: .
-    image: schema-gov-it-mcp:latest
+    image: ghcr.io/italia/dati-semantic-mcp:latest
+    pull_policy: always
     container_name: schema-gov-it-mcp
     restart: unless-stopped
     ports:
