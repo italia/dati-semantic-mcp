@@ -69,13 +69,23 @@ Il server espone **31 strumenti** organizzati in 10 categorie:
 
 Il server può essere eseguito come container Docker con trasporto HTTP/SSE, rendendolo accessibile via URL da qualsiasi client MCP.
 
-#### Avvio rapido con Docker Compose
+#### Avvio rapido con Docker Compose (immagine remota da GHCR)
 
 ```bash
 docker compose up -d mcp
 ```
 
+Per default, questo usa l'immagine pubblicata su `ghcr.io/italia/dati-semantic-mcp:latest` e la aggiorna automaticamente prima dell'avvio.
+
 Il server sarà disponibile su `http://localhost:3000/mcp`. I log vengono salvati nella cartella `./logs/`.
+
+#### Build locale esplicita con Docker Compose
+
+Se vuoi costruire l'immagine dal checkout locale invece di usare quella remota:
+
+```bash
+docker compose -f docker-compose.build.yaml up -d mcp
+```
 
 #### Avvio con Docker
 
