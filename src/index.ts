@@ -89,6 +89,7 @@ const CHARACTER_LIMIT = 50_000;
 
 const LOG_DIR = join(process.cwd(), "logs");
 const LOG_FILE = join(LOG_DIR, "usage_log.jsonl");
+const BROWSER_LIKE_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
 
 /**
  * Create and configure a new MCP server instance with all tools registered.
@@ -244,23 +245,51 @@ async function executeSparql(
   const fullQuery = injectPrefixes ? PREFIXES + "\n" + query : query;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const isExternalEndpoint = endpoint !== ENDPOINT;
+  const baseHeaders: Record<string, string> = {
+    "Accept": "application/sparql-results+json",
+  };
+
+  if (isExternalEndpoint) {
+    baseHeaders["User-Agent"] = BROWSER_LIKE_USER_AGENT;
+    baseHeaders["Accept-Language"] = "it-IT,it;q=0.9,en;q=0.8";
+  }
 
   try {
-    const response = await fetch(endpoint, {
+    const postResponse = await fetch(endpoint, {
       method: "POST",
       headers: {
+        ...baseHeaders,
         "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/sparql-results+json",
       },
       body: new URLSearchParams({ query: fullQuery }),
       signal: controller.signal,
     });
 
-    if (!response.ok) {
-      throw new Error(`SPARQL request failed: ${response.status} ${response.statusText}`);
+    if (postResponse.ok) {
+      return postResponse.json() as Promise<SparqlResult>;
     }
 
-    return response.json() as Promise<SparqlResult>;
+    // Some public endpoints behind proxies/WAFs reject POST from API clients
+    // but accept browser-like GET requests for the same SPARQL query.
+    if (isExternalEndpoint && postResponse.status === 403) {
+      const getUrl = new URL(endpoint);
+      getUrl.searchParams.set("query", fullQuery);
+
+      const getResponse = await fetch(getUrl.toString(), {
+        method: "GET",
+        headers: baseHeaders,
+        signal: controller.signal,
+      });
+
+      if (getResponse.ok) {
+        return getResponse.json() as Promise<SparqlResult>;
+      }
+
+      throw new Error(`SPARQL request failed: ${getResponse.status} ${getResponse.statusText}`);
+    }
+
+    throw new Error(`SPARQL request failed: ${postResponse.status} ${postResponse.statusText}`);
   } finally {
     clearTimeout(timeoutId);
   }
