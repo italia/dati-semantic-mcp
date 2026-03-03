@@ -214,8 +214,9 @@ Una volta configurato, puoi chiedere all'agente cose come:
 
 ## Note Tecniche
 
-*   **Endpoint Esterni**: Usa `recommend_external_endpoints` per una lista curata (es. `lod.dati.gov.it`, `dati.cultura.gov.it`, endpoint istituzionali italiani, endpoint europei e knowledge graph pubblici) e `list_linked_endpoints` per scoprire quelli pubblicati nel catalogo via metadata DCAT.
+*   **Endpoint Esterni**: Usa `recommend_external_endpoints` per una lista curata (es. `lod.dati.gov.it` come possibile server SPARQL per `dati.gov.it`, `dati.cultura.gov.it`, endpoint istituzionali italiani, endpoint europei e knowledge graph pubblici) e `list_linked_endpoints` per scoprire quelli pubblicati nel catalogo via metadata DCAT.
 *   **Riduzione Token per Query Esterne**: `query_external_endpoint` restituisce risultati compressi: conserva solo i valori utili, usa un formato tabellare compatto per result set più grandi e tronca risposte eccessive. Non aggiunge automaticamente `LIMIT`, quindi per query esterne conviene specificarlo sempre.
+*   **Compatibilità Endpoint Esterni**: Per migliorare l'interoperabilità con endpoint protetti da proxy o filtri anti-bot, le query SPARQL verso server esterni vengono inviate con header HTTP più simili a quelli di un browser standard. Se un endpoint esterno rifiuta il `POST` con `403`, il server riprova automaticamente in `GET`.
 *   **Prefixes Automatici**: Non serve definire `rdf:`, `owl:`, `skos:`, ecc. nelle query interne. Il server li aggiunge automaticamente. Per gli endpoint esterni i prefissi non vengono iniettati di default.
 *   **Compressione Token**: Le liste lunghe (> 5 item) vengono restituite in formato tabellare compatto per risparmiare token.
 *   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection.
