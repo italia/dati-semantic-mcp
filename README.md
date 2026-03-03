@@ -1,4 +1,6 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/mfortini/schema-gov-it-mcp)
+[![Docker](https://github.com/italia/dati-semantic-mcp/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/italia/dati-semantic-mcp/actions/workflows/docker-publish.yml)
+[![ghcr.io](https://img.shields.io/badge/ghcr.io-italia%2Fdati--semantic--mcp-blue?logo=docker)](https://ghcr.io/italia/dati-semantic-mcp)
 
 # Schema.gov.it MCP Server
 
@@ -8,7 +10,7 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 ## Strumenti disponibili
 
-Il server espone **30 strumenti** organizzati in 8 categorie:
+Il server espone **30 strumenti** organizzati in 10 categorie:
 
 ### 1. Operazioni Base
 *   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint. Utile per esplorazione ad-hoc.
@@ -43,13 +45,18 @@ Il server espone **30 strumenti** organizzati in 8 categorie:
 *   `suggest_improvements`: Euristiche per trovare anomalie strutturali nell'ontologia (classi orfane, cicli).
 *   `describe_resource`: **CBD**. Ottiene tutte le triple di una risorsa (Concise Bounded Description).
 
-### 7. Endpoint SPARQL Collegati
-*   `list_linked_endpoints`: Scopre i `dcat:DataService` referenziati nel catalogo con il loro endpoint SPARQL (`dcat:endpointURL`).
-*   `query_external_endpoint`: Esegue una query SPARQL su qualsiasi endpoint HTTPS pubblico (con timeout 15s e validazione URL).
-*   `find_external_alignments`: Dato un concetto in schema.gov.it, trova tutti i link verso risorse esterne (`owl:sameAs`, `skos:exactMatch`, `skos:closeMatch`, `skos:broadMatch`, `skos:narrowMatch`).
-*   `explore_external_endpoint`: Esplora la struttura di un endpoint SPARQL esterno (classi principali e conteggio istanze).
+### 7. Dati Geografici (Italia)
+*   `list_municipalities`: Elenca i comuni italiani con codici ISTAT e Belfiore, con filtro per nome.
+*   `list_provinces`: Elenca le province italiane con sigla automobilistica e codice metro.
+*   `list_identifiers`: Esplora gli identificatori CLV (Codice Catastale, Sigla Automobilistica, ecc.).
 
-### 8. Meta-Ottimizzazione
+### 8. Endpoint SPARQL Esterni
+*   `list_linked_endpoints`: Scopre gli endpoint SPARQL collegati al catalogo via `dcat:DataService`.
+*   `query_external_endpoint`: Esegue una query SPARQL su qualsiasi endpoint HTTPS pubblico.
+*   `find_external_alignments`: Trova i mapping verso risorse esterne (Eurostat, DBpedia, ecc.).
+*   `explore_external_endpoint`: Esplora la struttura di un endpoint esterno (classi e conteggi).
+
+### 9. Meta-Ottimizzazione
 *   `suggest_new_tools`: Analizza i log delle query RAW e suggerisce nuovi tool specializzati in base all'utilizzo reale.
 *   `analyze_usage`: Analizza i log interni per identificare pattern, errori e query frequenti.
 
@@ -57,12 +64,42 @@ Il server espone **30 strumenti** organizzati in 8 categorie:
 
 ## Installazione & Uso
 
-### 1. Tramite NPX (Senza installazione permanente)
+### 1. Tramite Docker (Consigliato per uso remoto/condiviso)
+
+Il server può essere eseguito come container Docker con trasporto HTTP/SSE, rendendolo accessibile via URL da qualsiasi client MCP.
+
+#### Avvio rapido con Docker Compose
+
+```bash
+docker compose up -d mcp
+```
+
+Il server sarà disponibile su `http://localhost:3000/mcp`. I log vengono salvati nella cartella `./logs/`.
+
+#### Avvio con Docker
+
+```bash
+docker run -d \
+  --name schema-gov-it-mcp \
+  -p 3000:3000 \
+  -e MCP_TRANSPORT=sse \
+  -v ./logs:/app/logs \
+  ghcr.io/italia/dati-semantic-mcp:latest
+```
+
+#### Verifica
+
+```bash
+curl http://localhost:3000/health
+# {"status":"ok","service":"schema-gov-it-mcp","sessions":0}
+```
+
+### 2. Tramite NPX (Senza installazione permanente)
 ```bash
 npx schema-gov-it-mcp
 ```
 
-### 2. Installazione da GitHub (Senza NPM Registry)
+### 3. Installazione da GitHub (Senza NPM Registry)
 Puoi installare globalmente direttamente dal repository:
 
 ```bash
@@ -70,9 +107,25 @@ npm install -g git+https://github.com/italia/dati-semantic-mcp.git
 ```
 Poi usa `schema-gov-it-mcp` come comando.
 
-### 3. Configurazione 
+### 4. Installazione Locale (Sviluppo)
+```bash
+git clone https://github.com/italia/dati-semantic-mcp.git
+cd dati-semantic-mcp
+npm install
+npm run build   # Automatico via prepare, ma puoi lanciarlo manualmente
+node dist/index.js
+```
 
-#### 3.1 Configurazione per Claude Code
+---
+
+## Configurazione Client MCP
+
+### Modalità stdio (processo locale)
+
+Adatta per uso personale: il client lancia il server come processo figlio.
+
+#### Claude Code
+
 ```bash
 claude mcp add schema-gov-it -- npx -y github:italia/dati-semantic-mcp
 ```
@@ -90,37 +143,57 @@ Oppure aggiungi manualmente a `~/.claude.json`:
 }
 ```
 
-#### 3.2 Configurazione per VS Code/ium
+#### VS Code / Cursor
+
+In `.vscode/mcp.json`:
 
 ```json
-# In .vscode/mcp.json
 {
-  "inputs": [
-    // The "inputs" section defines the inputs required for the MCP server configuration.
-    {
-      "type": "promptString"
-    }
-  ],
   "servers": {
-    // The "servers" section defines the MCP servers you want to use.
-    "fetch": {
+    "schema-gov-it": {
       "command": "npx",
-      "args": [
-        "-y",
-        "github:italia/dati-semantic-mcp"
-      ]
+      "args": ["-y", "github:italia/dati-semantic-mcp"]
     }
   }
 }
 ```
 
-### 4. Installazione Locale (Sviluppo)
+### Modalità HTTP/SSE (server remoto o Docker)
+
+Adatta per ambienti condivisi, CI/CD o deployment remoto. Il server deve essere già in esecuzione (es. via Docker Compose).
+
+#### Claude Code
+
 ```bash
-git clone https://github.com/italia/dati-semantic-mcp.git
-cd dati-semantic-mcp
-npm install
-npm run build   # Automatico via prepare, ma puoi lanciarlo manualmente
-node dist/index.js
+claude mcp add --transport http schema-gov-it http://localhost:3000/mcp
+```
+
+Oppure aggiungi manualmente a `~/.claude.json`:
+
+```json
+{
+  "mcpServers": {
+    "schema-gov-it": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
+#### VS Code / Cursor
+
+In `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "schema-gov-it": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
 ```
 
 ---
@@ -134,17 +207,16 @@ Una volta configurato, puoi chiedere all'agente cose come:
 *   *"Controlla se ci sono sovrapposizioni tra i concetti di Luogo."* (Userà `check_overlaps`)
 *   *"Come posso ottimizzare le mie query?"* (Userà `analyze_usage` sui log)
 *   *"Elenca le ontologie disponibili e mostrami le classi di quella sui Servizi Pubblici."* (Userà `list_ontologies` + `explore_ontology`)
-*   *"Quali endpoint SPARQL sono collegati al catalogo?"* (Userà `list_linked_endpoints`)
-*   *"Questo concetto ha corrispondenze in vocabolari europei?"* (Userà `find_external_alignments`)
-*   *"Esplora cosa contiene l'endpoint SPARQL di Eurostat."* (Userà `explore_external_endpoint`)
+*   *"Trova i comuni della Lombardia e il loro codice Belfiore."* (Userà `list_municipalities`)
+*   *"Esegui una query SPARQL su DBpedia per trovare le città italiane."* (Userà `query_external_endpoint`)
 
 ## Note Tecniche
 
 *   **Prefixes Automatici**: Non serve definire `rdf:`, `owl:`, `skos:`, ecc. nelle query interne. Il server li aggiunge automaticamente. Per gli endpoint esterni i prefissi non vengono iniettati di default.
 *   **Compressione Token**: Le liste lunghe (> 5 item) vengono restituite in formato tabellare compatto per risparmiare token.
-*   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection. Gli URL degli endpoint esterni vengono validati (solo HTTPS).
-*   **Timeout**: Le query verso endpoint esterni hanno un timeout di 15 secondi; quelle interne di 30 secondi.
-*   **Logging**: Tutte le chiamate vengono loggate in `usage_log.jsonl` per analisi e miglioramento continuo.
+*   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection.
+*   **Logging**: Tutte le chiamate vengono loggate in `logs/usage_log.jsonl` per analisi e miglioramento continuo.
+*   **Trasporto**: Il server supporta sia `stdio` (default, per uso locale) che HTTP/SSE (via `MCP_TRANSPORT=sse`, per uso remoto/Docker).
 
 ## Licenza
 

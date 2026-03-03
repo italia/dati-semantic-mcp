@@ -5,7 +5,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 import { appendFile, readFile } from "fs/promises";
 import { join } from "path";
-import { existsSync } from "fs";
+import { existsSync, mkdirSync } from "fs";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { randomUUID } from "crypto";
 
@@ -75,7 +75,8 @@ interface McpToolResponse {
 /** Maximum character limit for tool responses to prevent excessive output */
 const CHARACTER_LIMIT = 50_000;
 
-const LOG_FILE = join(process.cwd(), "usage_log.jsonl");
+const LOG_DIR = join(process.cwd(), "logs");
+const LOG_FILE = join(LOG_DIR, "usage_log.jsonl");
 
 /**
  * Create and configure a new MCP server instance with all tools registered.
@@ -1976,9 +1977,6 @@ server.registerTool(
   }
 );
 
-  return server;
-}
-
 // =============================================================================
 // GROUP J: Linked SPARQL Endpoints
 // =============================================================================
@@ -2196,11 +2194,17 @@ server.registerTool(
   }
 );
 
+  return server;
+}
+
 async function main() {
   console.error("[Startup] Schema.gov.it MCP Server initializing...");
   console.error("[Startup] Node version:", process.version);
   console.error("[Startup] Working directory:", process.cwd());
-  
+
+  // Ensure log directory exists
+  mkdirSync(LOG_DIR, { recursive: true });
+
   // Support both stdio (default) and HTTP/SSE modes
   const transportMode = process.env.MCP_TRANSPORT || 'stdio';
   console.error("[Startup] Transport mode:", transportMode);
