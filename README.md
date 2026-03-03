@@ -10,7 +10,7 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 ## Strumenti disponibili
 
-Il server espone **30 strumenti** organizzati in 10 categorie:
+Il server espone **31 strumenti** organizzati in 10 categorie:
 
 ### 1. Operazioni Base
 *   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint. Utile per esplorazione ad-hoc.
@@ -51,8 +51,9 @@ Il server espone **30 strumenti** organizzati in 10 categorie:
 *   `list_identifiers`: Esplora gli identificatori CLV (Codice Catastale, Sigla Automobilistica, ecc.).
 
 ### 8. Endpoint SPARQL Esterni
+*   `recommend_external_endpoints`: Restituisce una short list curata di endpoint SPARQL pubblici utili da usare insieme a `schema.gov.it`.
 *   `list_linked_endpoints`: Scopre gli endpoint SPARQL collegati al catalogo via `dcat:DataService`.
-*   `query_external_endpoint`: Esegue una query SPARQL su qualsiasi endpoint HTTPS pubblico.
+*   `query_external_endpoint`: Esegue una query SPARQL su qualsiasi endpoint HTTPS pubblico, con compressione del risultato per ridurre i token.
 *   `find_external_alignments`: Trova i mapping verso risorse esterne (Eurostat, DBpedia, ecc.).
 *   `explore_external_endpoint`: Esplora la struttura di un endpoint esterno (classi e conteggi).
 
@@ -208,10 +209,13 @@ Una volta configurato, puoi chiedere all'agente cose come:
 *   *"Come posso ottimizzare le mie query?"* (Userà `analyze_usage` sui log)
 *   *"Elenca le ontologie disponibili e mostrami le classi di quella sui Servizi Pubblici."* (Userà `list_ontologies` + `explore_ontology`)
 *   *"Trova i comuni della Lombardia e il loro codice Belfiore."* (Userà `list_municipalities`)
+*   *"Consigliami alcuni endpoint SPARQL esterni da interrogare dopo schema.gov.it."* (Userà `recommend_external_endpoints`)
 *   *"Esegui una query SPARQL su DBpedia per trovare le città italiane."* (Userà `query_external_endpoint`)
 
 ## Note Tecniche
 
+*   **Endpoint Esterni**: Usa `recommend_external_endpoints` per una lista curata (es. `lod.dati.gov.it`, `dati.cultura.gov.it`, endpoint istituzionali italiani, endpoint europei e knowledge graph pubblici) e `list_linked_endpoints` per scoprire quelli pubblicati nel catalogo via metadata DCAT.
+*   **Riduzione Token per Query Esterne**: `query_external_endpoint` restituisce risultati compressi: conserva solo i valori utili, usa un formato tabellare compatto per result set più grandi e tronca risposte eccessive. Non aggiunge automaticamente `LIMIT`, quindi per query esterne conviene specificarlo sempre.
 *   **Prefixes Automatici**: Non serve definire `rdf:`, `owl:`, `skos:`, ecc. nelle query interne. Il server li aggiunge automaticamente. Per gli endpoint esterni i prefissi non vengono iniettati di default.
 *   **Compressione Token**: Le liste lunghe (> 5 item) vengono restituite in formato tabellare compatto per risparmiare token.
 *   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection.
