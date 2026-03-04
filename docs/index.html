@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <title>Schema.gov.it MCP Server – Interazione semantica con le ontologie della PA</title>
+  <meta name="description" content="Server MCP per interagire semanticamente con il catalogo dati di schema.gov.it. 31 strumenti per esplorare ontologie, vocabolari e dataset SPARQL della PA italiana." />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/css/bootstrap-italia.min.css" />
+  <style>
+    pre.code-block {
+      background: #1a1a2e;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      overflow-x: auto;
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
+    .stat-number {
+      font-size: 2.25rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .tool-card-icon {
+      width: 2.5rem;
+      height: 2.5rem;
+      margin-bottom: 0.75rem;
+      fill: var(--bs-primary, #06c);
+    }
+    .it-card code {
+      font-size: 0.8rem;
+      color: #5a5a5a;
+    }
+    .nav-tabs .nav-link svg.icon {
+      vertical-align: -0.15em;
+    }
+    /* Hero: riduce il min-height e il padding eccessivi */
+    .it-hero-wrapper {
+      min-height: 0 !important;
+    }
+    .it-hero-wrapper .it-hero-text-wrapper {
+      padding-top: 3.5rem !important;
+      padding-bottom: 3.5rem !important;
+    }
+    /* Descrizione hero visibile anche su mobile */
+    .it-hero-wrapper p.hero-desc {
+      display: block !important;
+      max-width: 42rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    /* Stats bar: numeri in colore primario su sfondo bianco */
+    .stat-number { color: var(--bs-primary, #0066cc); }
+    /* Nav: sottile indicatore hover/focus sui link della navbar */
+    .navbar-wrapper .navbar-nav .nav-link {
+      padding-bottom: 0.6rem;
+      border-bottom: 3px solid transparent;
+      transition: border-color 0.2s ease;
+    }
+    .navbar-wrapper .navbar-nav .nav-link:hover,
+    .navbar-wrapper .navbar-nav .nav-link:focus {
+      border-bottom-color: rgba(255, 255, 255, 0.7);
+    }
+    /* Esempi: card uguale altezza */
+    .col-esempio { display: flex; flex-direction: column; }
+    .col-esempio .callout { flex: 1; display: flex; flex-direction: column; }
+    .col-esempio .callout .callout-inner { flex: 1; display: flex; flex-direction: column; }
+  </style>
+</head>
+<body>
+
+  <!-- =====================================================================
+       HEADER
+  ====================================================================== -->
+  <header class="it-header-wrapper">
+
+    <!-- Slim bar -->
+    <div class="it-header-slim-wrapper">
+      <div class="container">
+        <div class="row">
+          <div class="col-12">
+            <div class="it-header-slim-wrapper-content">
+              <a class="d-none d-lg-block navbar-brand" href="https://schema.gov.it" target="_blank" rel="noopener noreferrer">schema.gov.it</a>
+              <div class="nav-mobile">
+                <nav aria-label="Navigazione istituzionale">
+                  <a class="it-opener d-lg-none" data-bs-toggle="collapse" href="#slim-menu" role="button" aria-expanded="false" aria-controls="slim-menu">
+                    <span>schema.gov.it</span>
+                    <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-expand"></use></svg>
+                  </a>
+                  <div class="link-list-wrapper collapse" id="slim-menu">
+                    <ul class="link-list">
+                      <li><a class="dropdown-item list-item" href="https://schema.gov.it" target="_blank" rel="noopener noreferrer"><span>Catalogo dati</span></a></li>
+                      <li><a class="dropdown-item list-item" href="https://designers.italia.it" target="_blank" rel="noopener noreferrer"><span>Designers Italia</span></a></li>
+                    </ul>
+                  </div>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center header -->
+    <div class="it-nav-wrapper">
+      <div class="it-header-center-wrapper">
+        <div class="container">
+          <div class="row">
+            <div class="col-12">
+              <div class="it-header-center-content-wrapper">
+                <div class="it-brand-wrapper">
+                  <a href="#">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-pa"></use>
+                    </svg>
+                    <div class="it-brand-text">
+                      <div class="it-brand-title">Schema.gov.it MCP Server</div>
+                      <div class="it-brand-tagline d-none d-md-block">Interazione semantica con le ontologie della PA italiana</div>
+                    </div>
+                  </a>
+                </div>
+                <div class="it-right-zone">
+                  <div class="it-socials d-none d-md-flex">
+                    <ul>
+                      <li>
+                        <a href="https://github.com/italia/dati-semantic-mcp" aria-label="GitHub – dati-semantic-mcp" target="_blank" rel="noopener noreferrer">
+                          <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-github"></use></svg>
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navbar -->
+      <div class="navbar-wrapper">
+        <nav class="navbar navbar-expand-lg has-megamenu" aria-label="Navigazione principale">
+          <div class="container">
+          <button class="custom-navbar-toggler" type="button"
+            aria-controls="main-nav"
+            aria-expanded="false"
+            aria-label="Mostra/Nascondi la navigazione"
+            data-bs-toggle="navbarcollapsible"
+            data-bs-target="#main-nav">
+            <svg class="icon bg-override"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-burger"></use></svg>
+          </button>
+          <div class="navbar-collapsable" id="main-nav">
+            <div class="overlay" style="display:none;"></div>
+            <div class="close-div">
+              <button aria-label="Nascondi la navigazione" data-bs-toggle="navbarcollapsible" data-bs-target="#main-nav" type="button">
+                <span class="visually-hidden">Nascondi la navigazione</span>
+                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-close-big"></use></svg>
+              </button>
+            </div>
+            <div class="menu-wrapper">
+              <ul class="navbar-nav">
+                <li class="nav-item"><a class="nav-link" href="#strumenti">Strumenti</a></li>
+                <li class="nav-item"><a class="nav-link" href="#installazione">Installazione</a></li>
+                <li class="nav-item"><a class="nav-link" href="#configurazione">Configurazione</a></li>
+                <li class="nav-item"><a class="nav-link" href="#esempi">Esempi</a></li>
+              </ul>
+            </div>
+          </div>
+          </div><!-- /container -->
+        </nav>
+      </div>
+    </div>
+  </header>
+
+
+  <!-- =====================================================================
+       HERO
+  ====================================================================== -->
+  <section class="it-hero-wrapper it-text-centered it-dark">
+    <div class="container">
+      <div class="row">
+        <div class="col-12">
+          <div class="it-hero-text-wrapper">
+            <span class="it-category">Model Context Protocol</span>
+            <h1>Schema.gov.it<br>MCP Server</h1>
+            <p class="hero-desc">
+              Server MCP avanzato per interagire semanticamente con il catalogo dati di <strong>schema.gov.it</strong>.
+              Abilita agenti AI a esplorare ontologie, analizzare vocabolari controllati e interrogare
+              dataset SPARQL della Pubblica Amministrazione italiana.
+            </p>
+            <div class="it-btn-container">
+              <a class="btn btn-sm btn-light me-3" href="#installazione">
+                <svg class="icon icon-sm me-1"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-download"></use></svg>
+                Inizia subito
+              </a>
+              <a class="btn btn-sm btn-outline-light" href="https://github.com/italia/dati-semantic-mcp" target="_blank" rel="noopener noreferrer">
+                <svg class="icon icon-sm me-1"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-github"></use></svg>
+                GitHub
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =====================================================================
+       STATS BAR
+  ====================================================================== -->
+  <div class="py-4 border-top border-bottom">
+    <div class="container">
+      <div class="row text-center gy-3">
+        <div class="col-6 col-md-3">
+          <div class="stat-number">31</div>
+          <div class="small">strumenti MCP</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-number">10</div>
+          <div class="small">categorie funzionali</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-number" style="font-size:1.5rem">SPARQL</div>
+          <div class="small">endpoint schema.gov.it</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-number">MIT</div>
+          <div class="small">licenza aperta</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- =====================================================================
+       STRUMENTI
+  ====================================================================== -->
+  <section id="strumenti" class="py-5">
+    <div class="container">
+
+      <div class="row mb-4">
+        <div class="col-12 text-center">
+          <h2>Strumenti disponibili</h2>
+          <p class="lead">31 strumenti organizzati in 10 categorie per coprire ogni aspetto del web semantico PA</p>
+        </div>
+      </div>
+
+      <div class="row g-3">
+
+        <!-- Operazioni Base -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-settings"></use></svg>
+            <h3 class="it-card-title h5">
+              Operazioni Base
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">3</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">Query SPARQL libere, esplorazione del catalogo e delle classi con conteggi istanze.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>query_sparql</code></li>
+                <li><code>explore_catalog</code></li>
+                <li><code>explore_classes</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <!-- Analytics Semantiche -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-chart-line"></use></svg>
+            <h3 class="it-card-title h5">
+              Analytics Semantiche
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">3</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">Copertura, qualità e sovrapposizioni: individua gap, label mancanti e duplicati.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>check_coverage</code></li>
+                <li><code>check_quality</code></li>
+                <li><code>check_overlaps</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <!-- Modello Dati / Ontologie -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-list"></use></svg>
+            <h3 class="it-card-title h5">
+              Modello Dati / Ontologie
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">4</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">Naviga classi, proprietà e relazioni delle ontologie OntoPiA nel catalogo.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>list_ontologies</code></li>
+                <li><code>explore_ontology</code></li>
+                <li><code>list_properties</code></li>
+                <li><code>get_property_details</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <!-- Vocabolari Controllati -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-file-text"></use></svg>
+            <h3 class="it-card-title h5">
+              Vocabolari Controllati
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">3</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">Esplora ConceptScheme: da codici ICD a classificazioni ATECO e tipologie di enti.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>list_vocabularies</code></li>
+                <li><code>search_in_vocabulary</code></li>
+                <li><code>browse_vocabulary</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <!-- Catalogo & Dataset -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-folder"></use></svg>
+            <h3 class="it-card-title h5">
+              Catalogo &amp; Dataset
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">3</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">Dataset DCAT-AP_IT: esplora metadati, distribuzioni e anteprime CSV/JSON dalla chat.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>list_datasets</code></li>
+                <li><code>explore_dataset</code></li>
+                <li><code>preview_distribution</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <!-- Intelligence Avanzata -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-search"></use></svg>
+            <h3 class="it-card-title h5">
+              Intelligence Avanzata
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">5</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">Ricerca fuzzy, deep dive su concetti, pathfinding tra entità e rilevamento anomalie ontologiche.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>search_concepts</code></li>
+                <li><code>inspect_concept</code></li>
+                <li><code>find_relations</code></li>
+                <li><code>suggest_improvements</code></li>
+                <li><code>describe_resource</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <!-- Dati Geografici -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-pin"></use></svg>
+            <h3 class="it-card-title h5">
+              Dati Geografici (Italia)
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">3</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">Comuni, province e identificatori CLV con codici ISTAT, Belfiore e sigle automobilistiche.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>list_municipalities</code></li>
+                <li><code>list_provinces</code></li>
+                <li><code>list_identifiers</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <!-- Endpoint SPARQL Esterni -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-exchange"></use></svg>
+            <h3 class="it-card-title h5">
+              Endpoint SPARQL Esterni
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">5</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">Federated queries verso DBpedia, Wikidata, Eurostat e altri endpoint pubblici. Auto-retry GET/POST.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>list_linked_endpoints</code></li>
+                <li><code>query_external_endpoint</code></li>
+                <li><code>find_external_alignments</code></li>
+                <li><code>explore_external_endpoint</code></li>
+                <li><code>recommend_external_endpoints</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <!-- Meta-Ottimizzazione -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-info-circle"></use></svg>
+            <h3 class="it-card-title h5">
+              Meta-Ottimizzazione
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">2</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">Analisi dei log di utilizzo per identificare pattern d'uso e suggerire nuovi strumenti specializzati.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>suggest_new_tools</code></li>
+                <li><code>analyze_usage</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+      </div><!-- /row -->
+    </div><!-- /container -->
+  </section>
+
+
+  <!-- =====================================================================
+       INSTALLAZIONE
+  ====================================================================== -->
+  <section id="installazione" class="py-5" style="background-color: #f2f7fc;">
+    <div class="container">
+
+      <div class="row mb-4">
+        <div class="col-12 text-center">
+          <h2>Installazione</h2>
+          <p class="lead">Scegli la modalità più adatta al tuo caso d'uso</p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-12 col-lg-10">
+
+          <ul class="nav nav-tabs" id="install-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <a class="nav-link active" id="tab-docker" data-bs-toggle="tab" href="#panel-docker"
+                 role="tab" aria-controls="panel-docker" aria-selected="true">
+                <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-software"></use></svg>
+                Docker
+              </a>
+            </li>
+            <li class="nav-item" role="presentation">
+              <a class="nav-link" id="tab-npx" data-bs-toggle="tab" href="#panel-npx"
+                 role="tab" aria-controls="panel-npx" aria-selected="false">
+                <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-code-circle"></use></svg>
+                NPX
+              </a>
+            </li>
+            <li class="nav-item" role="presentation">
+              <a class="nav-link" id="tab-local" data-bs-toggle="tab" href="#panel-local"
+                 role="tab" aria-controls="panel-local" aria-selected="false">
+                <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-github"></use></svg>
+                Da sorgente
+              </a>
+            </li>
+          </ul>
+
+          <div class="tab-content bg-white border border-top-0 rounded-bottom shadow-sm p-4">
+
+            <!-- Docker -->
+            <div class="tab-pane fade show active" id="panel-docker" role="tabpanel" aria-labelledby="tab-docker">
+              <p><strong>Consigliato</strong> per uso remoto o condiviso. Supporta trasporto HTTP/SSE.</p>
+              <p class="text-muted mb-1">Avvio rapido con Docker Compose (immagine da GHCR):</p>
+              <pre class="code-block">docker compose up -d mcp</pre>
+              <p class="text-muted mb-1 mt-3">Oppure con Docker direttamente:</p>
+              <pre class="code-block">docker run -d \
+  --name schema-gov-it-mcp \
+  -p 3000:3000 \
+  -e MCP_TRANSPORT=sse \
+  -v ./logs:/app/logs \
+  ghcr.io/italia/dati-semantic-mcp:latest</pre>
+              <p class="text-muted mb-1 mt-3">Verifica che il server sia attivo:</p>
+              <pre class="code-block">curl http://localhost:3000/health
+# {"status":"ok","service":"schema-gov-it-mcp","sessions":0}</pre>
+              <div class="callout success mt-4">
+                <div class="callout-inner">
+                  <div class="callout-title">
+                    <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-check-circle"></use></svg>
+                    <span class="visually-hidden">Informazione</span>
+                    <span class="text">Immagine pubblicata su GHCR</span>
+                  </div>
+                  <p class="mb-0">
+                    L'immagine <code>ghcr.io/italia/dati-semantic-mcp:latest</code> viene aggiornata
+                    automaticamente via GitHub Actions ad ogni push su <code>main</code>.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- NPX -->
+            <div class="tab-pane fade" id="panel-npx" role="tabpanel" aria-labelledby="tab-npx">
+              <p>Avvio istantaneo via <strong>stdio</strong> senza installazione permanente.</p>
+              <pre class="code-block">npx schema-gov-it-mcp</pre>
+              <p class="text-muted mb-1 mt-3">Aggiungi il server a <strong>Claude Code</strong> con un singolo comando:</p>
+              <pre class="code-block">claude mcp add schema-gov-it -- npx -y github:italia/dati-semantic-mcp</pre>
+              <p class="text-muted mb-1 mt-3">Configurazione manuale in <code>~/.claude.json</code>:</p>
+              <pre class="code-block">{
+  "mcpServers": {
+    "schema-gov-it": {
+      "command": "npx",
+      "args": ["-y", "github:italia/dati-semantic-mcp"]
+    }
+  }
+}</pre>
+            </div>
+
+            <!-- Da sorgente -->
+            <div class="tab-pane fade" id="panel-local" role="tabpanel" aria-labelledby="tab-local">
+              <p>Installazione locale per sviluppo e personalizzazione del codice sorgente.</p>
+              <pre class="code-block">git clone https://github.com/italia/dati-semantic-mcp.git
+cd dati-semantic-mcp
+npm install
+npm run build
+node dist/index.js</pre>
+              <p class="text-muted mb-1 mt-3">Installazione globale da GitHub:</p>
+              <pre class="code-block">npm install -g git+https://github.com/italia/dati-semantic-mcp.git
+schema-gov-it-mcp</pre>
+            </div>
+
+          </div><!-- /tab-content -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =====================================================================
+       CONFIGURAZIONE CLIENT
+  ====================================================================== -->
+  <section id="configurazione" class="py-5">
+    <div class="container">
+
+      <div class="row mb-4">
+        <div class="col-12 text-center">
+          <h2>Configurazione client MCP</h2>
+          <p class="lead">Integra il server con il tuo editor o agente AI preferito</p>
+        </div>
+      </div>
+
+      <div class="row g-4">
+
+        <div class="col-12 col-md-6">
+          <h3 class="h5">
+            <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-code-circle"></use></svg>
+            Claude Code — modalità stdio
+          </h3>
+          <pre class="code-block">claude mcp add schema-gov-it \
+  -- npx -y github:italia/dati-semantic-mcp</pre>
+
+          <h3 class="h5 mt-4">
+            <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-software"></use></svg>
+            Claude Code — modalità HTTP/Docker
+          </h3>
+          <pre class="code-block">claude mcp add --transport http \
+  schema-gov-it http://localhost:3000/mcp</pre>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <h3 class="h5">
+            <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-github"></use></svg>
+            VS Code / Cursor (<code>.vscode/mcp.json</code>)
+          </h3>
+          <pre class="code-block">{
+  "servers": {
+    "schema-gov-it": {
+      "command": "npx",
+      "args": ["-y", "github:italia/dati-semantic-mcp"]
+    }
+  }
+}</pre>
+          <p class="mt-3 text-muted small">
+            Per la modalità HTTP aggiungere invece:
+            <code>"type": "http", "url": "http://localhost:3000/mcp"</code>
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =====================================================================
+       ESEMPI DI UTILIZZO
+  ====================================================================== -->
+  <section id="esempi" class="py-5" style="background-color: #f2f7fc;">
+    <div class="container">
+
+      <div class="row mb-4">
+        <div class="col-12 text-center">
+          <h2>Esempi di utilizzo</h2>
+          <p class="lead">Cosa puoi chiedere all'agente AI una volta configurato il server</p>
+        </div>
+      </div>
+
+      <div class="row g-3">
+
+        <div class="col-12 col-md-6 col-esempio">
+          <div class="callout note h-100">
+            <div class="callout-inner">
+              <div class="callout-title">
+                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-search"></use></svg>
+                <span class="visually-hidden">Esempio:</span>
+                <span class="text">Esplora il catalogo semantico</span>
+              </div>
+              <p><em>"Cerca concetti relativi alla 'Sanità' e dimmi quali sono le classi principali."</em></p>
+              <p class="text-muted small mb-0">→ usa <code>search_concepts</code> + <code>inspect_concept</code></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-esempio">
+          <div class="callout note h-100">
+            <div class="callout-inner">
+              <div class="callout-title">
+                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-pin"></use></svg>
+                <span class="visually-hidden">Esempio:</span>
+                <span class="text">Dati geografici</span>
+              </div>
+              <p><em>"Trova i comuni della Lombardia e il loro codice Belfiore."</em></p>
+              <p class="text-muted small mb-0">→ usa <code>list_municipalities</code></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-esempio">
+          <div class="callout note h-100">
+            <div class="callout-inner">
+              <div class="callout-title">
+                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-exchange"></use></svg>
+                <span class="visually-hidden">Esempio:</span>
+                <span class="text">Endpoint SPARQL esterni</span>
+              </div>
+              <p><em>"Esegui una query SPARQL su DBpedia per trovare le città italiane e collegale con quelle di schema.gov.it."</em></p>
+              <p class="text-muted small mb-0">→ usa <code>query_external_endpoint</code> + <code>find_external_alignments</code></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-esempio">
+          <div class="callout note h-100">
+            <div class="callout-inner">
+              <div class="callout-title">
+                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-chart-line"></use></svg>
+                <span class="visually-hidden">Esempio:</span>
+                <span class="text">Analisi qualità ontologica</span>
+              </div>
+              <p><em>"Controlla se ci sono sovrapposizioni tra i concetti di Luogo e individua label mancanti."</em></p>
+              <p class="text-muted small mb-0">→ usa <code>check_overlaps</code> + <code>check_quality</code></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-esempio">
+          <div class="callout note h-100">
+            <div class="callout-inner">
+              <div class="callout-title">
+                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-list"></use></svg>
+                <span class="visually-hidden">Esempio:</span>
+                <span class="text">Esplora ontologie OntoPiA</span>
+              </div>
+              <p><em>"Elenca le ontologie disponibili e mostrami le classi di quella sui Servizi Pubblici."</em></p>
+              <p class="text-muted small mb-0">→ usa <code>list_ontologies</code> + <code>explore_ontology</code></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-esempio">
+          <div class="callout note h-100">
+            <div class="callout-inner">
+              <div class="callout-title">
+                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-info-circle"></use></svg>
+                <span class="visually-hidden">Esempio:</span>
+                <span class="text">Suggerisci endpoint utili</span>
+              </div>
+              <p><em>"Consigliami alcuni endpoint SPARQL pubblici da interrogare insieme a schema.gov.it."</em></p>
+              <p class="text-muted small mb-0">→ usa <code>recommend_external_endpoints</code></p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =====================================================================
+       FOOTER
+  ====================================================================== -->
+  <footer class="it-footer">
+    <div class="it-footer-main">
+      <div class="container">
+
+        <section>
+          <div class="row clearfix">
+            <div class="col-sm-12">
+              <div class="it-brand-wrapper">
+                <a href="#">
+                  <svg class="icon" aria-hidden="true">
+                    <use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-pa"></use>
+                  </svg>
+                  <div class="it-brand-text">
+                    <h2 class="it-brand-title">Schema.gov.it MCP Server</h2>
+                    <div class="it-brand-tagline">Interazione semantica con le ontologie della PA italiana</div>
+                  </div>
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="py-4 border-top">
+          <div class="row">
+            <div class="col-12 col-md-4 mb-4 mb-md-0">
+              <h3 class="it-list-title">Progetto</h3>
+              <ul class="it-list footer-list clearfix">
+                <li><a href="https://github.com/italia/dati-semantic-mcp" target="_blank" rel="noopener noreferrer"><span>Repository GitHub</span></a></li>
+                <li><a href="https://github.com/italia/dati-semantic-mcp/blob/main/LICENSE" target="_blank" rel="noopener noreferrer"><span>Licenza MIT</span></a></li>
+                <li><a href="https://ghcr.io/italia/dati-semantic-mcp" target="_blank" rel="noopener noreferrer"><span>Immagine Docker (GHCR)</span></a></li>
+              </ul>
+            </div>
+            <div class="col-12 col-md-4 mb-4 mb-md-0">
+              <h3 class="it-list-title">Risorse</h3>
+              <ul class="it-list footer-list clearfix">
+                <li><a href="https://schema.gov.it" target="_blank" rel="noopener noreferrer"><span>schema.gov.it</span></a></li>
+                <li><a href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer"><span>Model Context Protocol</span></a></li>
+                <li><a href="https://designers.italia.it" target="_blank" rel="noopener noreferrer"><span>Designers Italia</span></a></li>
+              </ul>
+            </div>
+            <div class="col-12 col-md-4">
+              <h3 class="it-list-title">Note</h3>
+              <p class="small">
+                Progetto open source parte dell'ecosistema della Pubblica Amministrazione italiana.
+                Realizzato con <a href="https://italia.github.io/bootstrap-italia/" target="_blank" rel="noopener noreferrer">Bootstrap Italia</a>
+                nel rispetto delle
+                <a href="https://designers.italia.it/norme-e-riferimenti/linee-guida-di-design/" target="_blank" rel="noopener noreferrer">Linee guida di design PA</a>.
+              </p>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <div class="it-footer-small-prints clearfix">
+      <div class="container">
+        <h3 class="visually-hidden">Sezione note legali e copyright</h3>
+        <ul class="it-footer-small-prints-list list-inline mb-0 d-flex flex-column flex-md-row">
+          <li class="list-inline-item">
+            <a href="https://github.com/italia/dati-semantic-mcp/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
+          </li>
+          <li class="list-inline-item">
+            <a href="https://github.com/italia/dati-semantic-mcp" target="_blank" rel="noopener noreferrer">italia/dati-semantic-mcp su GitHub</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/js/bootstrap-italia.bundle.min.js"></script>
+</body>
+</html>
