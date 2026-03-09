@@ -10,7 +10,7 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 ## Strumenti disponibili
 
-Il server espone **31 strumenti** organizzati in 10 categorie:
+Il server espone **34 strumenti** organizzati in 11 categorie:
 
 ### 1. Operazioni Base
 *   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint. Utile per esplorazione ad-hoc.
@@ -50,14 +50,19 @@ Il server espone **31 strumenti** organizzati in 10 categorie:
 *   `list_provinces`: Elenca le province italiane con sigla automobilistica e codice metro.
 *   `list_identifiers`: Esplora gli identificatori CLV (Codice Catastale, Sigla Automobilistica, ecc.).
 
-### 8. Endpoint SPARQL Esterni
+### 8. Endpoint SPARQL Esterni (linked data)
 *   `recommend_external_endpoints`: Restituisce una short list curata di endpoint SPARQL pubblici utili da usare insieme a `schema.gov.it`.
 *   `list_linked_endpoints`: Scopre gli endpoint SPARQL collegati al catalogo via `dcat:DataService`.
 *   `query_external_endpoint`: Esegue una query SPARQL su qualsiasi endpoint HTTPS pubblico, con compressione del risultato per ridurre i token.
 *   `find_external_alignments`: Trova i mapping verso risorse esterne (Eurostat, DBpedia, ecc.).
 *   `explore_external_endpoint`: Esplora la struttura di un endpoint esterno (classi e conteggi).
 
-### 9. Meta-Ottimizzazione
+### 9. Ontologia Locale
+*   `inspect_local_ontology`: Carica e riassume un file RDF/OWL locale (TTL, OWL, NT, JSON-LD) — classi, proprietà, namespace, conteggio triple. Il file viene cachato in memoria dopo il primo caricamento.
+*   `query_local_ontology`: Esegue una query SPARQL SELECT su un file locale. Prefissi standard iniettati automaticamente. Risultati compressi come gli altri tool.
+*   `compare_local_with_remote`: Confronta le classi/proprietà definite localmente con quelle presenti in schema.gov.it — utile per scoprire cosa riusare o allineare.
+
+### 10. Meta-Ottimizzazione
 *   `suggest_new_tools`: Analizza i log delle query RAW e suggerisce nuovi tool specializzati in base all'utilizzo reale.
 *   `analyze_usage`: Analizza i log interni per identificare pattern, errori e query frequenti.
 
@@ -221,6 +226,9 @@ Una volta configurato, puoi chiedere all'agente cose come:
 *   *"Trova i comuni della Lombardia e il loro codice Belfiore."* (Userà `list_municipalities`)
 *   *"Consigliami alcuni endpoint SPARQL esterni da interrogare dopo schema.gov.it."* (Userà `recommend_external_endpoints`)
 *   *"Esegui una query SPARQL su DBpedia per trovare le città italiane."* (Userà `query_external_endpoint`)
+*   *"Dammi una panoramica dell'ontologia in `/home/user/mia-ontologia.ttl`."* (Userà `inspect_local_ontology`)
+*   *"Quali classi della mia ontologia esistono già in schema.gov.it?"* (Userà `compare_local_with_remote`)
+*   *"Trova tutte le classi senza rdfs:label nel file locale."* (Userà `query_local_ontology`)
 
 ## Note Tecniche
 
@@ -230,6 +238,7 @@ Una volta configurato, puoi chiedere all'agente cose come:
 *   **Prefixes Automatici**: Non serve definire `rdf:`, `owl:`, `skos:`, ecc. nelle query interne. Il server li aggiunge automaticamente. Per gli endpoint esterni i prefissi non vengono iniettati di default.
 *   **Compressione Token**: Le liste lunghe (> 5 item) vengono restituite in formato tabellare compatto per risparmiare token.
 *   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection.
+*   **Ontologia Locale**: I tool del gruppo 9 (`inspect_local_ontology`, `query_local_ontology`, `compare_local_with_remote`) usano [oxigraph](https://github.com/oxigraph/oxigraph) (WASM) per caricare file RDF/OWL locali in memoria ed eseguire SPARQL. I file vengono cachati dopo il primo caricamento; le query successive sullo stesso file non rileggono il disco. Formati supportati: `.ttl`, `.owl`, `.rdf`, `.nt`, `.jsonld`.
 *   **Logging**: Tutte le chiamate vengono loggate in `logs/usage_log.jsonl` per analisi e miglioramento continuo.
 *   **Trasporto**: Il server supporta sia `stdio` (default, per uso locale) che HTTP/SSE (via `MCP_TRANSPORT=sse`, per uso remoto/Docker).
 

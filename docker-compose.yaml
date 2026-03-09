@@ -15,9 +15,14 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    # Optional: mount usage logs to persist them
     volumes:
+      # Persist usage logs
       - ./logs:/app/logs
+      # Mount local ontology files for the local ontology tools (inspect/query/compare).
+      # Files placed in ./ontologies/ on the host will be accessible inside the
+      # container as /app/ontologies/<filename>.ttl
+      # Uncomment the line below to enable:
+      # - ./ontologies:/app/ontologies:ro
     # Environment variables
     environment:
       - NODE_ENV=production

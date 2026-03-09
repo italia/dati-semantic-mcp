@@ -23,8 +23,9 @@ Single-file implementation (`src/index.ts`) using:
 - `@modelcontextprotocol/sdk` for MCP protocol handling over stdio
 - `zod` for parameter validation
 - Direct `fetch` calls to the SPARQL endpoint
+- `oxigraph` (WASM) for local RDF file loading and SPARQL execution
 
-### Tool Hierarchy (30 tools)
+### Tool Hierarchy (33 tools)
 
 **Base Operations:**
 - `query_sparql` - Raw SPARQL execution with automatic prefix injection
@@ -69,6 +70,11 @@ Single-file implementation (`src/index.ts`) using:
 - `query_external_endpoint` - Execute SPARQL against any public HTTPS endpoint
 - `find_external_alignments` - Find owl:sameAs / skos:*Match links toward external systems
 - `explore_external_endpoint` - Explore classes/counts of an external SPARQL endpoint
+
+**Local Ontology (Group K):**
+- `inspect_local_ontology` - Load and summarize a local TTL/OWL/NT/JSON-LD file (classes, properties, namespaces, triple count)
+- `query_local_ontology` - Execute SPARQL SELECT against a local ontology file
+- `compare_local_with_remote` - Compare local classes/properties against schema.gov.it to find matches and gaps
 
 **Meta:**
 - `suggest_new_tools` - Analyze usage logs to suggest new specialized tools
