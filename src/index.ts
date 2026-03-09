@@ -3,9 +3,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
-import { appendFile, readFile } from "fs/promises";
+import { appendFile, readFile, stat } from "fs/promises";
 import { join } from "path";
 import { existsSync, mkdirSync } from "fs";
+import { Store as OxStore } from "oxigraph";
+import type { Term as OxTerm } from "oxigraph";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { randomUUID } from "crypto";
 
@@ -90,6 +92,49 @@ const CHARACTER_LIMIT = 50_000;
 const LOG_DIR = join(process.cwd(), "logs");
 const LOG_FILE = join(LOG_DIR, "usage_log.jsonl");
 const BROWSER_LIKE_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+
+// =============================================================================
+// UPLOADED STORE REGISTRY (module-level, shared between HTTP handler and tools)
+// =============================================================================
+
+/** Temporary ontology store created via HTTP POST /upload, keyed by UUID */
+interface UploadedStoreEntry {
+  store: OxStore;
+  format: string;
+  tripleCount: number;
+  created: number;
+}
+
+const uploadedStores = new Map<string, UploadedStoreEntry>();
+const MAX_UPLOAD_SIZE = 1_000_000; // 1 MB hard limit for HTTP uploads
+const UPLOAD_TTL_MS = 3_600_000;   // Evict stores after 1 hour
+
+/** Read raw HTTP body up to maxBytes; rejects with RangeError if exceeded. */
+function readRawBodyWithLimit(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    req.on("data", (chunk: Buffer) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        req.destroy();
+        reject(new RangeError(`Body exceeds ${maxBytes} bytes`));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+/** Remove uploaded stores older than UPLOAD_TTL_MS */
+function evictExpiredUploads(): void {
+  const cutoff = Date.now() - UPLOAD_TTL_MS;
+  for (const [id, entry] of uploadedStores) {
+    if (entry.created < cutoff) uploadedStores.delete(id);
+  }
+}
 
 /**
  * Create and configure a new MCP server instance with all tools registered.
@@ -430,6 +475,145 @@ async function executeSparqlTool(
     const compressed = compressSparqlResult(result);
     return { success: true, data: compressed, rowCount };
   });
+}
+
+// =============================================================================
+// LOCAL ONTOLOGY SUPPORT (oxigraph)
+// =============================================================================
+
+interface LocalStoreEntry {
+  store: OxStore;
+  mtime: number;
+  format: string;
+  tripleCount: number;
+  etag?: string;
+  lastModified?: string;
+}
+
+const localStoreCache = new Map<string, LocalStoreEntry>();
+
+/** Max size for inline RDF content passed via the `content` parameter */
+const MAX_INLINE_CONTENT_SIZE = 1_000_000; // ~1 MB
+
+function detectFormatFromContentType(contentType: string): string | undefined {
+  const ct = (contentType.split(";")[0] ?? "").trim().toLowerCase();
+  if (ct === "text/turtle" || ct === "application/turtle") return "text/turtle";
+  if (ct === "application/rdf+xml") return "application/rdf+xml";
+  if (ct === "application/n-triples") return "application/n-triples";
+  if (ct === "application/ld+json") return "application/ld+json";
+  if (ct === "text/n3" || ct === "text/rdf+n3") return "text/n3";
+  return undefined;
+}
+
+function detectRdfFormat(filePath: string): string {
+  // Strip query string and fragment for URL detection
+  const pathOnly = (filePath.split("?")[0] ?? "").split("#")[0] ?? "";
+  const ext = pathOnly.toLowerCase().split(".").pop() ?? "";
+  switch (ext) {
+    case "ttl": return "text/turtle";
+    case "n3":  return "text/n3";
+    case "nt":  return "application/n-triples";
+    case "jsonld":
+    case "json": return "application/ld+json";
+    case "owl":
+    case "rdf":
+    case "xml": return "application/rdf+xml";
+    default:    return "text/turtle";
+  }
+}
+
+async function getLocalStore(filePath: string): Promise<LocalStoreEntry> {
+  const fileStat = await stat(filePath);
+  const mtime = fileStat.mtimeMs;
+  const cached = localStoreCache.get(filePath);
+  if (cached && cached.mtime === mtime) return cached;
+
+  const content = await readFile(filePath, "utf-8");
+  const format = detectRdfFormat(filePath);
+  const store = new OxStore();
+  store.load(content, { format, lenient: true });
+
+  const entry: LocalStoreEntry = { store, mtime, format, tripleCount: store.size };
+  localStoreCache.set(filePath, entry);
+  return entry;
+}
+
+/**
+ * Resolve a local store from either a file path (cached) or inline content.
+ * Exactly one of file_path or content must be provided.
+ */
+async function resolveLocalStore(
+  filePath: string | undefined,
+  content: string | undefined,
+  format: string | undefined,
+  uploadId?: string
+): Promise<{ store: OxStore; tripleCount: number; format: string; source: string }> {
+  const provided = [filePath, content, uploadId].filter(Boolean).length;
+  if (provided > 1) {
+    throw new Error("Provide exactly one of: file_path, content, or upload_id.");
+  }
+  if (provided === 0) {
+    throw new Error("Provide one of: file_path (local server), content (remote server), or upload_id (HTTP upload).");
+  }
+
+  if (uploadId) {
+    const entry = uploadedStores.get(uploadId);
+    if (!entry) {
+      throw new Error(`Upload store '${uploadId}' not found or expired. Upload a file first via POST /upload (stores expire after 1 hour).`);
+    }
+    return { store: entry.store, tripleCount: entry.tripleCount, format: entry.format, source: `upload:${uploadId}` };
+  }
+
+  if (filePath) {
+    const entry = await getLocalStore(filePath);
+    return { store: entry.store, tripleCount: entry.tripleCount, format: entry.format, source: filePath };
+  }
+
+  // Inline content path
+  if (content!.length > MAX_INLINE_CONTENT_SIZE) {
+    throw new Error(
+      `Content length (${content!.length} chars) exceeds the ${MAX_INLINE_CONTENT_SIZE}-character limit. ` +
+      `Use file_path instead for large ontologies.`
+    );
+  }
+  const fmt = format ?? "text/turtle";
+  const store = new OxStore();
+  store.load(content!, { format: fmt, lenient: true });
+  return { store, tripleCount: store.size, format: fmt, source: "inline" };
+}
+
+function oxTermToBindingValue(term: OxTerm): SparqlBindingValue {
+  if (term.termType === "NamedNode") return { type: "uri", value: term.value };
+  if (term.termType === "BlankNode") return { type: "bnode", value: term.value };
+  if (term.termType === "Literal") {
+    const bv: SparqlBindingValue = { type: "literal", value: term.value };
+    if (term.language) bv["xml:lang"] = term.language;
+    if (term.datatype) bv.datatype = term.datatype.value;
+    return bv;
+  }
+  return { type: "literal", value: term.value };
+}
+
+function oxSelectToSparqlResult(rows: Map<string, OxTerm>[]): SparqlResult {
+  const firstRow = rows[0];
+  const vars = firstRow ? Array.from(firstRow.keys()) : [];
+  const bindings: SparqlBinding[] = rows.map(row => {
+    const b: SparqlBinding = {};
+    for (const [k, v] of row.entries()) {
+      if (v !== undefined) b[k] = oxTermToBindingValue(v);
+    }
+    return b;
+  });
+  return { head: { vars }, results: { bindings } };
+}
+
+function runLocalSparql(store: OxStore, query: string, injectPrefixes = true): SparqlResult {
+  const fullQuery = injectPrefixes ? PREFIXES + "\n" + query : query;
+  const raw = store.query(fullQuery, { use_default_graph_as_union: true });
+  if (!Array.isArray(raw)) {
+    return { head: { vars: [] }, results: { bindings: [] } };
+  }
+  return oxSelectToSparqlResult(raw as Map<string, OxTerm>[]);
 }
 
 // =============================================================================
@@ -2362,6 +2546,289 @@ server.registerTool(
   }
 );
 
+// =============================================================================
+// GROUP K: Local Ontology Tools
+// =============================================================================
+
+server.registerTool(
+  "inspect_local_ontology",
+  {
+    title: "Inspect Local Ontology",
+    description: `Load and summarize a local RDF/OWL ontology file (TTL, OWL/RDF-XML, NT, JSON-LD).
+
+**Input (provide exactly one):**
+- file_path: Absolute path on the server filesystem — use when running locally or via Docker with a mounted volume
+- content + format: Raw RDF text — use when the server is remote (HTTP mode); the client reads the file and sends its content inline (max 1 MB)
+- upload_id: UUID returned by POST /upload — use when the file was already uploaded via HTTP
+
+**format values:** "text/turtle" (default), "application/rdf+xml", "application/n-triples", "application/ld+json"
+
+**Returns:**
+- File info: format, triple count, source
+- Classes: defined owl:Class / rdfs:Class with instance counts (top 20)
+- Properties: count of object and datatype properties
+- Namespaces used
+
+**Efficiency:** file_path results are cached by mtime; repeated calls on unchanged files skip re-parsing.`,
+    inputSchema: {
+      file_path: z.string().optional().describe("Absolute path to the ontology file on the server filesystem"),
+      content: z.string().optional().describe("Raw RDF content as string (for remote server use; max 1 MB)"),
+      format: z.string().optional().describe('RDF format of content: "text/turtle" (default), "application/rdf+xml", "application/n-triples", "application/ld+json"'),
+      upload_id: z.string().optional().describe("Upload UUID returned by POST /upload (HTTP mode)"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  async ({ file_path, content, format, upload_id }) => {
+    return executeTool("inspect_local_ontology", { file_path, content: content ? `[${content.length} chars]` : undefined, format, upload_id }, async () => {
+      const { store, format: fmt, tripleCount, source } = await resolveLocalStore(file_path, content, format, upload_id);
+
+      const classesResult = runLocalSparql(store, `
+        SELECT ?class (COUNT(DISTINCT ?inst) AS ?count)
+        WHERE {
+          { ?class a owl:Class } UNION { ?class a rdfs:Class }
+          OPTIONAL { ?inst a ?class }
+        }
+        GROUP BY ?class ORDER BY DESC(?count) LIMIT 20
+      `);
+
+      const propsResult = runLocalSparql(store, `
+        SELECT
+          (COUNT(DISTINCT ?op) AS ?objectProps)
+          (COUNT(DISTINCT ?dp) AS ?dataProps)
+        WHERE {
+          OPTIONAL { ?op a owl:ObjectProperty }
+          OPTIONAL { ?dp a owl:DatatypeProperty }
+        }
+      `);
+
+      const nsResult = runLocalSparql(store, `
+        SELECT DISTINCT (REPLACE(STR(?s), "(#|/)[^#/]*$", "$1") AS ?ns)
+        WHERE { ?s a ?t . FILTER(isIRI(?s)) }
+        LIMIT 15
+      `);
+
+      const classes = compressSparqlResult(classesResult);
+      const props = compressSparqlResult(propsResult);
+      const namespaces = (nsResult.results.bindings.map(b => b.ns?.value)).filter(Boolean);
+
+      return {
+        success: true,
+        data: {
+          source,
+          format: fmt,
+          tripleCount,
+          classes,
+          properties: props,
+          namespaces,
+        },
+      };
+    });
+  }
+);
+
+server.registerTool(
+  "query_local_ontology",
+  {
+    title: "Query Local Ontology",
+    description: `Execute a SPARQL SELECT query against a local RDF/OWL ontology file.
+
+**Args (provide exactly one of file_path or upload_id):**
+- file_path: Absolute path to the ontology file (local/Docker)
+- upload_id: UUID returned by POST /upload (HTTP mode)
+- query: SPARQL SELECT query
+- inject_prefixes: Inject standard prefixes (rdf, rdfs, owl, skos, dct…) — default true
+
+**Returns:**
+- Compressed SPARQL results (tabular for >5 rows, compact for ≤5 rows)
+
+**Supported formats:** .ttl (Turtle), .owl / .rdf (RDF/XML), .nt (N-Triples), .jsonld (JSON-LD)
+**Efficiency:** File is cached after first load; repeated queries on the same unchanged file skip re-parsing.
+**Note:** Standard prefixes (rdf, rdfs, owl, skos…) are injected automatically unless inject_prefixes=false.`,
+    inputSchema: {
+      file_path: z.string().optional().describe("Absolute path to the local ontology file (local/Docker)"),
+      upload_id: z.string().optional().describe("Upload UUID returned by POST /upload (HTTP mode)"),
+      query: z.string().describe("SPARQL SELECT query to execute"),
+      inject_prefixes: z.boolean().optional().default(true).describe("Inject standard prefixes (default: true)"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  async ({ file_path, upload_id, query, inject_prefixes }) => {
+    return executeTool("query_local_ontology", { file_path, upload_id, query, inject_prefixes }, async () => {
+      const { store } = await resolveLocalStore(file_path, undefined, undefined, upload_id);
+      const result = runLocalSparql(store, query, inject_prefixes ?? true);
+      const rowCount = result.results.bindings.length;
+      const compressed = compressSparqlResult(result);
+      return { success: true, data: compressed, rowCount };
+    });
+  }
+);
+
+server.registerTool(
+  "compare_local_with_remote",
+  {
+    title: "Compare Local Ontology with schema.gov.it",
+    description: `Compare classes and/or properties defined in a local ontology file against schema.gov.it.
+
+**Args (provide exactly one of file_path or upload_id):**
+- file_path: Absolute path to the local ontology file (local/Docker)
+- upload_id: UUID returned by POST /upload (HTTP mode)
+- type: What to compare — "classes" | "properties" | "all" (default: "classes")
+- limit: Max local items to check (default: 50)
+
+**Returns:**
+- matched: URIs found in both local file and schema.gov.it (with Italian label if available)
+- local_only: URIs defined locally but absent from schema.gov.it
+- summary counts
+
+**Use when:** Starting to build an ontology — quickly discover which of your classes/properties already exist in schema.gov.it so you can reuse or align them.`,
+    inputSchema: {
+      file_path: z.string().optional().describe("Absolute path to the local ontology file (local/Docker)"),
+      upload_id: z.string().optional().describe("Upload UUID returned by POST /upload (HTTP mode)"),
+      type: z.enum(["classes", "properties", "all"]).optional().default("classes").describe("What to compare"),
+      limit: z.number().optional().default(50).describe("Max local items to check remotely"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ file_path, upload_id, type, limit }) => {
+    return executeTool("compare_local_with_remote", { file_path, upload_id, type, limit }, async () => {
+      const { store } = await resolveLocalStore(file_path, undefined, undefined, upload_id);
+      const safeLimit = Math.min(limit ?? 50, 100);
+
+      // Collect local URIs
+      const localUris: string[] = [];
+
+      if (type === "classes" || type === "all") {
+        const r = runLocalSparql(store, `
+          SELECT DISTINCT ?c WHERE {
+            { ?c a owl:Class } UNION { ?c a rdfs:Class }
+            FILTER(isIRI(?c))
+          } LIMIT ${safeLimit}
+        `);
+        for (const b of r.results.bindings) {
+          if (b.c?.value) localUris.push(b.c.value);
+        }
+      }
+
+      if (type === "properties" || type === "all") {
+        const r = runLocalSparql(store, `
+          SELECT DISTINCT ?p WHERE {
+            { ?p a owl:ObjectProperty } UNION { ?p a owl:DatatypeProperty } UNION { ?p a rdf:Property }
+            FILTER(isIRI(?p))
+          } LIMIT ${safeLimit}
+        `);
+        for (const b of r.results.bindings) {
+          if (b.p?.value) localUris.push(b.p.value);
+        }
+      }
+
+      if (localUris.length === 0) {
+        return { success: true, data: { matched: [], local_only: [], summary: { localCount: 0, matchedCount: 0, localOnlyCount: 0 } } };
+      }
+
+      // Check which URIs exist in schema.gov.it
+      const valuesClause = localUris.map(u => `<${u}>`).join(" ");
+      const remoteQuery = `
+        SELECT DISTINCT ?uri ?label
+        WHERE {
+          VALUES ?uri { ${valuesClause} }
+          ?uri ?p [] .
+          OPTIONAL { ?uri rdfs:label ?label . FILTER(LANG(?label) = "it") }
+        }
+      `;
+      const remoteResult = await executeSparql(remoteQuery);
+      const remoteUris = new Set(remoteResult.results.bindings.map(b => b.uri?.value).filter(Boolean));
+      const labelMap: Record<string, string> = {};
+      for (const b of remoteResult.results.bindings) {
+        if (b.uri?.value && b.label?.value) labelMap[b.uri.value] = b.label.value;
+      }
+
+      const matched = localUris
+        .filter(u => remoteUris.has(u))
+        .map(u => ({ uri: u, label: labelMap[u] ?? null }));
+      const local_only = localUris.filter(u => !remoteUris.has(u));
+
+      return {
+        success: true,
+        data: {
+          matched,
+          local_only,
+          summary: {
+            localCount: localUris.length,
+            matchedCount: matched.length,
+            localOnlyCount: local_only.length,
+          },
+        },
+        rowCount: localUris.length,
+      };
+    });
+  }
+);
+
+// =============================================================================
+// GROUP L: Uploaded Store Tools (HTTP upload workflow)
+// =============================================================================
+
+server.registerTool(
+  "query_uploaded_store",
+  {
+    title: "Query Uploaded Store",
+    description: `Execute a SPARQL SELECT query against a temporary ontology store created via HTTP upload.
+
+**Workflow (HTTP mode only):**
+1. Upload a local RDF file: \`POST /upload\` with raw RDF body and correct Content-Type (max 1 MB)
+2. Response: \`{"id": "<uuid>", "tripleCount": N, "endpoint": "/sparql/<uuid>"}\`
+3. Use the \`id\` here to run SPARQL queries, OR pass it as \`upload_id\` to \`inspect_local_ontology\`, \`query_local_ontology\`, \`compare_local_with_remote\`
+
+**Supported Content-Types for upload:** text/turtle, application/rdf+xml, application/n-triples, application/ld+json
+
+**Notes:**
+- Uploaded stores are kept for 1 hour then evicted
+- Standard prefixes (rdf/rdfs/owl/skos/dct/xsd/dcat/foaf/clv/cpv/l0/sm) are auto-injected
+- The same store is also queryable directly via \`GET /sparql/<id>?query=...\``,
+    inputSchema: {
+      id: z.string().describe("Upload UUID returned by POST /upload"),
+      query: z.string().describe("SPARQL SELECT query to execute against the uploaded store"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  async ({ id, query }) => {
+    return executeTool("query_uploaded_store", { id, query }, async () => {
+      const entry = uploadedStores.get(id);
+      if (!entry) {
+        return {
+          success: false,
+          error: `Uploaded store '${id}' not found or expired.`,
+          suggestion: "Upload a file first via POST /upload (raw RDF body, max 1 MB). Stores expire after 1 hour.",
+        };
+      }
+      const result = runLocalSparql(entry.store, query, true);
+      const rowCount = result.results.bindings.length;
+      const compressed = compressSparqlResult(result);
+      return { success: true, data: compressed, rowCount };
+    });
+  }
+);
+
   return server;
 }
 
@@ -2409,7 +2876,117 @@ async function main() {
       // Health check endpoint
       if (url.pathname === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', service: 'schema-gov-it-mcp', sessions: sessions.size }));
+        res.end(JSON.stringify({ status: 'ok', service: 'schema-gov-it-mcp', sessions: sessions.size, uploadedStores: uploadedStores.size }));
+        return;
+      }
+
+      // POST /upload – upload an RDF file (max 1 MB), get back an id + SPARQL endpoint
+      if (url.pathname === '/upload' && req.method === 'POST') {
+        evictExpiredUploads();
+        let bodyBuf: Buffer;
+        try {
+          bodyBuf = await readRawBodyWithLimit(req, MAX_UPLOAD_SIZE);
+        } catch (e) {
+          res.writeHead(413, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `File too large. Maximum size is ${MAX_UPLOAD_SIZE} bytes (1 MB).` }));
+          return;
+        }
+        const contentType = req.headers['content-type'] ?? '';
+        const formatParam = url.searchParams.get('format');
+        const ctNorm = (contentType.split(';')[0] ?? '').trim().toLowerCase();
+        const ctFormatMap: Record<string, string> = {
+          'text/turtle': 'text/turtle', 'application/turtle': 'text/turtle',
+          'application/rdf+xml': 'application/rdf+xml',
+          'application/n-triples': 'application/n-triples',
+          'application/ld+json': 'application/ld+json',
+          'text/n3': 'text/n3', 'text/rdf+n3': 'text/n3',
+        };
+        const extFormatMap: Record<string, string> = {
+          ttl: 'text/turtle', n3: 'text/n3', nt: 'application/n-triples',
+          jsonld: 'application/ld+json', json: 'application/ld+json',
+          xml: 'application/rdf+xml', rdf: 'application/rdf+xml', owl: 'application/rdf+xml',
+        };
+        const format =
+          ctFormatMap[ctNorm] ??
+          (formatParam ? extFormatMap[formatParam.toLowerCase()] : undefined) ??
+          'text/turtle';
+        const store = new OxStore();
+        try {
+          store.load(bodyBuf.toString('utf-8'), { format, lenient: true });
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Failed to parse RDF: ${String(e)}` }));
+          return;
+        }
+        const id = randomUUID();
+        uploadedStores.set(id, { store, format, tripleCount: store.size, created: Date.now() });
+        console.error(`[Upload] Stored ontology id=${id} triples=${store.size} format=${format}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ id, tripleCount: store.size, format, endpoint: `/sparql/${id}` }));
+        return;
+      }
+
+      // GET|POST /sparql/{id} – SPARQL 1.1 Protocol endpoint for an uploaded store
+      const sparqlMatch = /^\/sparql\/([0-9a-f-]{36})$/i.exec(url.pathname);
+      if (sparqlMatch) {
+        const id = sparqlMatch[1] ?? '';
+        const entry = uploadedStores.get(id);
+        if (!entry) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Store '${id}' not found or expired. Upload a file first via POST /upload.` }));
+          return;
+        }
+        let sparqlQuery: string | undefined;
+        if (req.method === 'GET') {
+          sparqlQuery = url.searchParams.get('query') ?? undefined;
+        } else if (req.method === 'POST') {
+          const bodyBuf = await readRawBodyWithLimit(req, MAX_UPLOAD_SIZE);
+          const body = bodyBuf.toString('utf-8');
+          const ct = req.headers['content-type'] ?? '';
+          if (ct.includes('application/sparql-query')) {
+            sparqlQuery = body;
+          } else if (ct.includes('application/x-www-form-urlencoded')) {
+            sparqlQuery = new URLSearchParams(body).get('query') ?? undefined;
+          } else {
+            sparqlQuery = body; // fallback: treat body as raw SPARQL
+          }
+        }
+        if (!sparqlQuery) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing SPARQL query. Use ?query= (GET) or POST body.' }));
+          return;
+        }
+        try {
+          const raw = entry.store.query(sparqlQuery, { use_default_graph_as_union: true });
+          if (Array.isArray(raw)) {
+            const rows = raw as Map<string, OxTerm>[];
+            const vars = rows[0] ? Array.from(rows[0].keys()) : [];
+            const bindings = rows.map(row => {
+              const b: Record<string, unknown> = {};
+              for (const [k, v] of row.entries()) {
+                if (v.termType === "NamedNode") {
+                  b[k] = { type: "uri", value: v.value };
+                } else if (v.termType === "BlankNode") {
+                  b[k] = { type: "bnode", value: v.value };
+                } else if (v.termType === "Literal") {
+                  const lit: Record<string, unknown> = { type: "literal", value: v.value };
+                  if (v.language) lit["xml:lang"] = v.language;
+                  if (v.datatype) lit["datatype"] = v.datatype.value;
+                  b[k] = lit;
+                }
+              }
+              return b;
+            });
+            res.writeHead(200, { 'Content-Type': 'application/sparql-results+json' });
+            res.end(JSON.stringify({ head: { vars }, results: { bindings } }));
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/sparql-results+json' });
+            res.end(JSON.stringify({ head: { vars: [] }, results: { bindings: [] } }));
+          }
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: String(e) }));
+        }
         return;
       }
 
