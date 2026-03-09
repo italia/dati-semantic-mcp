@@ -31,12 +31,12 @@
   "author": "Matteo Fortini",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "oxigraph": "^0.5.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^25.1.0",
+    "@types/node": "^25.3.5",
     "typescript": "^5.9.3"
   }
 }
