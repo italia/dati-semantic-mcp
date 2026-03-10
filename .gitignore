@@ -1,11 +1,6 @@
-node_modules
-dist
-usage_log.jsonl
-*.log
-.DS_Store
+# Keep the gh-pages branch focused on the published static site.
+*
+!/.gitignore
+!/docs/
+!/docs/**
 
-# Compiled artifacts outside dist/
-/*.js
-/*.js.map
-/*.d.ts
-/*.d.ts.map

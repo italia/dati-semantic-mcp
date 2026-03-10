@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-  <title>Schema.gov.it MCP Server – Interazione semantica con le ontologie della PA</title>
-  <meta name="description" content="Server MCP per interagire semanticamente con il catalogo dati di schema.gov.it. 31 strumenti per esplorare ontologie, vocabolari e dataset SPARQL della PA italiana." />
+  <title>Schema.gov.it MCP Server - Interazione semantica con ontologie e cataloghi della PA</title>
+  <meta name="description" content="Server MCP per schema.gov.it con 31 strumenti in 10 categorie: ontologie, vocabolari, dataset, analytics semantiche ed endpoint SPARQL esterni." />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 73'%3E%3Cpath fill='%23FFF' d='M0 6h64v64H0z'/%3E%3Ctext x='26' y='51.5' fill='%2306C' font-family='Titillium Web' font-size='48' font-weight='700' letter-spacing='-1.2'%3ES%3C/text%3E%3Ctext x='32' y='66' fill='%2306C' font-family='Roboto Mono, monospace' font-size='11' font-weight='700' letter-spacing='0.8' text-anchor='middle'%3EMCP%3C/text%3E%3Ccircle cx='17.5' cy='25' r='4.5' fill='%2306C'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/css/bootstrap-italia.min.css" />
   <style>
     pre.code-block {
@@ -57,17 +58,119 @@
       border-bottom: 3px solid transparent;
       transition: border-color 0.2s ease;
     }
+    .it-header-center-wrapper {
+      padding-top: 1.25rem;
+      padding-bottom: 1rem;
+    }
+    .it-header-center-content-wrapper {
+      min-height: 0;
+    }
+    .it-header-center-content-wrapper .it-brand-wrapper a {
+      gap: 0;
+      align-items: flex-start;
+    }
+    .it-header-center-content-wrapper .it-brand-wrapper .brand-logo {
+      width: 4.5rem;
+      height: 4.5rem;
+      flex: 0 0 auto;
+      margin-right: 0.75rem;
+    }
+    .it-header-center-content-wrapper .it-brand-text {
+      padding-left: 0;
+    }
+    .navbar-wrapper {
+      background: rgba(0, 43, 92, 0.22);
+      backdrop-filter: blur(6px);
+      border-top: 1px solid rgba(255, 255, 255, 0.16);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+    .navbar-wrapper .navbar {
+      min-height: 4.25rem;
+    }
     .navbar-wrapper .navbar-nav .nav-link:hover,
     .navbar-wrapper .navbar-nav .nav-link:focus {
       border-bottom-color: rgba(255, 255, 255, 0.7);
+    }
+    .navbar-wrapper .navbar-nav .nav-link.active,
+    .navbar-wrapper .navbar-nav .nav-link[aria-current="page"] {
+      border-bottom-color: #fff;
+      font-weight: 700;
     }
     /* Esempi: card uguale altezza */
     .col-esempio { display: flex; flex-direction: column; }
     .col-esempio .callout { flex: 1; display: flex; flex-direction: column; }
     .col-esempio .callout .callout-inner { flex: 1; display: flex; flex-direction: column; }
+    .feature-card {
+      background: #fff;
+      border: 1px solid #d9e3f0;
+      border-radius: 12px;
+      padding: 1.25rem;
+      height: 100%;
+      box-shadow: 0 0.5rem 1rem rgba(23, 50, 77, 0.06);
+    }
+    .feature-card .icon {
+      color: var(--bs-primary, #0066cc);
+    }
+    .feature-card p:last-child,
+    .feature-card ul:last-child {
+      margin-bottom: 0;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 999px;
+      color: #fff;
+      font-size: 0.875rem;
+      padding: 0.35rem 0.75rem;
+      margin: 0.25rem;
+    }
+    .quick-card .it-card-title a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .quick-card .it-card-title a:hover,
+    .quick-card .it-card-title a:focus {
+      text-decoration: underline;
+    }
+    .quick-card .it-card-footer {
+      margin-top: auto;
+    }
+    .quick-card .icon {
+      color: var(--bs-primary, #0066cc);
+    }
+    .it-btn-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+    }
+    .it-btn-container .btn {
+      margin: 0;
+      min-width: 10.5rem;
+      justify-content: center;
+    }
+    @media (max-width: 575.98px) {
+      .it-btn-container {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .it-btn-container .btn {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
+
+  <div class="skiplinks">
+    <a class="visually-hidden-focusable" href="#main-nav-link">Vai al menu principale</a>
+    <a class="visually-hidden-focusable" href="#main-content">Vai al contenuto principale</a>
+    <a class="visually-hidden-focusable" href="#site-footer">Vai al piede di pagina</a>
+  </div>
 
   <!-- =====================================================================
        HEADER
@@ -110,8 +213,13 @@
               <div class="it-header-center-content-wrapper">
                 <div class="it-brand-wrapper">
                   <a href="#">
-                    <svg class="icon" aria-hidden="true">
-                      <use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-pa"></use>
+                    <svg width="130" height="130" viewBox="0 0 64 73" xmlns="http://www.w3.org/2000/svg" class="brand-logo img-fluid img-logo-header-normal d-inline-block align-top p-1 rounded" aria-hidden="true">
+                      <g fill="none" fill-rule="evenodd">
+                        <path fill="#FFF" d="M0 6h64v64H0z"></path>
+                        <text font-family="TitilliumWeb-Bold, Titillium Web" font-size="48" font-weight="bold" letter-spacing="-1.2" fill="#06C"><tspan x="26" y="51.5">S</tspan></text>
+                        <text font-family="Roboto Mono, monospace" font-size="11" font-weight="700" letter-spacing="0.8" fill="#06C" text-anchor="middle"><tspan x="32" y="66">MCP</tspan></text>
+                        <circle fill="#06C" cx="17.5" cy="25" r="4.5"></circle>
+                      </g>
                     </svg>
                     <div class="it-brand-text">
                       <div class="it-brand-title">Schema.gov.it MCP Server</div>
@@ -158,10 +266,11 @@
             </div>
             <div class="menu-wrapper">
               <ul class="navbar-nav">
-                <li class="nav-item"><a class="nav-link" href="#strumenti">Strumenti</a></li>
+                <li class="nav-item"><a class="nav-link active" aria-current="page" id="main-nav-link" href="#strumenti">Strumenti</a></li>
                 <li class="nav-item"><a class="nav-link" href="#installazione">Installazione</a></li>
                 <li class="nav-item"><a class="nav-link" href="#configurazione">Configurazione</a></li>
                 <li class="nav-item"><a class="nav-link" href="#esempi">Esempi</a></li>
+                <li class="nav-item"><a class="nav-link" href="#note-tecniche">Note tecniche</a></li>
               </ul>
             </div>
           </div>
@@ -170,6 +279,8 @@
       </div>
     </div>
   </header>
+
+  <main id="main-content">
 
 
   <!-- =====================================================================
@@ -184,17 +295,23 @@
             <h1>Schema.gov.it<br>MCP Server</h1>
             <p class="hero-desc">
               Server MCP avanzato per interagire semanticamente con il catalogo dati di <strong>schema.gov.it</strong>.
-              Abilita agenti AI a esplorare ontologie, analizzare vocabolari controllati e interrogare
-              dataset SPARQL della Pubblica Amministrazione italiana.
+              Abilita agenti AI a esplorare ontologie, analizzare copertura e qualita dei dati,
+              navigare vocabolari controllati e interrogare endpoint SPARQL interni ed esterni.
             </p>
+            <div class="mb-4">
+              <span class="status-pill">31 strumenti</span>
+              <span class="status-pill">10 categorie</span>
+              <span class="status-pill">stdio + HTTP/SSE</span>
+            </div>
             <div class="it-btn-container">
-              <a class="btn btn-sm btn-light me-3" href="#installazione">
-                <svg class="icon icon-sm me-1"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-download"></use></svg>
+              <a class="btn btn-sm btn-light" href="#installazione">
                 Inizia subito
               </a>
               <a class="btn btn-sm btn-outline-light" href="https://github.com/italia/dati-semantic-mcp" target="_blank" rel="noopener noreferrer">
-                <svg class="icon icon-sm me-1"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-github"></use></svg>
                 GitHub
+              </a>
+              <a class="btn btn-sm btn-outline-light" href="https://deepwiki.com/italia/dati-semantic-mcp" target="_blank" rel="noopener noreferrer">
+                Documentazione
               </a>
             </div>
           </div>
@@ -232,6 +349,80 @@
 
 
   <!-- =====================================================================
+       PERCORSI RAPIDI
+  ====================================================================== -->
+  <section class="py-5">
+    <div class="container">
+      <div class="row mb-4">
+        <div class="col-12 text-center">
+          <h2>Percorsi rapidi</h2>
+          <p class="lead">Tre ingressi chiari per installare, configurare e provare il server MCP.</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-12 col-md-6 col-lg-4 mb-3 mb-md-4">
+          <article class="it-card quick-card it-card-height-full rounded shadow-sm border">
+            <h3 class="it-card-title h4">
+              <a href="#installazione">Installa il server</a>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text">Parti da Docker, <code>npx</code> o dal checkout locale in base al contesto operativo del client MCP.</p>
+            </div>
+            <footer class="it-card-related it-card-footer">
+              <div class="it-card-taxonomy">
+                <span class="it-card-category">
+                  <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-download"></use></svg>
+                  Setup
+                </span>
+              </div>
+            </footer>
+          </article>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-4 mb-3 mb-md-4">
+          <article class="it-card quick-card it-card-height-full rounded shadow-sm border">
+            <h3 class="it-card-title h4">
+              <a href="#configurazione">Configura il client</a>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text">Usa le configurazioni pronte per Claude Code, VS Code e Cursor in modalita <code>stdio</code> o HTTP/SSE.</p>
+            </div>
+            <footer class="it-card-related it-card-footer">
+              <div class="it-card-taxonomy">
+                <span class="it-card-category">
+                  <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-settings"></use></svg>
+                  Client MCP
+                </span>
+              </div>
+            </footer>
+          </article>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-4 mb-3 mb-md-4">
+          <article class="it-card quick-card it-card-height-full rounded shadow-sm border">
+            <h3 class="it-card-title h4">
+              <a href="#esempi">Prova i prompt</a>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text">Apri gli esempi d'uso per vedere come comporre richieste su ontologie, dataset e endpoint SPARQL.</p>
+            </div>
+            <footer class="it-card-related it-card-footer">
+              <div class="it-card-taxonomy">
+                <span class="it-card-category">
+                  <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-comment"></use></svg>
+                  Esempi
+                </span>
+              </div>
+            </footer>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =====================================================================
        STRUMENTI
   ====================================================================== -->
   <section id="strumenti" class="py-5">
@@ -240,7 +431,7 @@
       <div class="row mb-4">
         <div class="col-12 text-center">
           <h2>Strumenti disponibili</h2>
-          <p class="lead">31 strumenti organizzati in 10 categorie per coprire ogni aspetto del web semantico PA</p>
+          <p class="lead">31 strumenti organizzati in 10 categorie per esplorazione, analisi e interoperabilita semantica</p>
         </div>
       </div>
 
@@ -391,7 +582,7 @@
               <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">5</span>
             </h3>
             <div class="it-card-body">
-              <p class="it-card-text small">Federated queries verso DBpedia, Wikidata, Eurostat e altri endpoint pubblici. Auto-retry GET/POST.</p>
+              <p class="it-card-text small">Query verso endpoint SPARQL pubblici, discovery di servizi collegati e retry automatico da POST a GET in caso di 403.</p>
               <ul class="list-unstyled small mt-2">
                 <li><code>list_linked_endpoints</code></li>
                 <li><code>query_external_endpoint</code></li>
@@ -435,7 +626,7 @@
       <div class="row mb-4">
         <div class="col-12 text-center">
           <h2>Installazione</h2>
-          <p class="lead">Scegli la modalità più adatta al tuo caso d'uso</p>
+          <p class="lead">Modalita allineate al README per uso locale, remoto o sviluppo</p>
         </div>
       </div>
 
@@ -473,6 +664,8 @@
               <p><strong>Consigliato</strong> per uso remoto o condiviso. Supporta trasporto HTTP/SSE.</p>
               <p class="text-muted mb-1">Avvio rapido con Docker Compose (immagine da GHCR):</p>
               <pre class="code-block">docker compose up -d mcp</pre>
+              <p class="text-muted mb-1 mt-3">Per buildare dal checkout locale invece dell'immagine remota:</p>
+              <pre class="code-block">docker compose -f docker-compose.build.yaml up -d mcp</pre>
               <p class="text-muted mb-1 mt-3">Oppure con Docker direttamente:</p>
               <pre class="code-block">docker run -d \
   --name schema-gov-it-mcp \
@@ -502,6 +695,9 @@
             <div class="tab-pane fade" id="panel-npx" role="tabpanel" aria-labelledby="tab-npx">
               <p>Avvio istantaneo via <strong>stdio</strong> senza installazione permanente.</p>
               <pre class="code-block">npx schema-gov-it-mcp</pre>
+              <p class="text-muted mb-1 mt-3">Installazione globale da GitHub, senza passare dal registry npm:</p>
+              <pre class="code-block">npm install -g git+https://github.com/italia/dati-semantic-mcp.git
+schema-gov-it-mcp</pre>
               <p class="text-muted mb-1 mt-3">Aggiungi il server a <strong>Claude Code</strong> con un singolo comando:</p>
               <pre class="code-block">claude mcp add schema-gov-it -- npx -y github:italia/dati-semantic-mcp</pre>
               <p class="text-muted mb-1 mt-3">Configurazione manuale in <code>~/.claude.json</code>:</p>
@@ -523,9 +719,7 @@ cd dati-semantic-mcp
 npm install
 npm run build
 node dist/index.js</pre>
-              <p class="text-muted mb-1 mt-3">Installazione globale da GitHub:</p>
-              <pre class="code-block">npm install -g git+https://github.com/italia/dati-semantic-mcp.git
-schema-gov-it-mcp</pre>
+              <p class="small text-muted mb-0">Il build e gia agganciato anche allo script <code>prepare</code>, ma nel README viene mantenuto esplicito per chiarezza.</p>
             </div>
 
           </div><!-- /tab-content -->
@@ -544,34 +738,60 @@ schema-gov-it-mcp</pre>
       <div class="row mb-4">
         <div class="col-12 text-center">
           <h2>Configurazione client MCP</h2>
-          <p class="lead">Integra il server con il tuo editor o agente AI preferito</p>
+          <p class="lead">Configurazioni pronte per Claude Code, VS Code e Cursor in modalita stdio e HTTP</p>
         </div>
       </div>
 
       <div class="row g-4">
 
         <div class="col-12 col-md-6">
-          <h3 class="h5">
-            <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-code-circle"></use></svg>
-            Claude Code — modalità stdio
-          </h3>
-          <pre class="code-block">claude mcp add schema-gov-it \
+          <div class="feature-card">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-code-circle"></use></svg>
+              Claude Code - modalita stdio
+            </h3>
+            <pre class="code-block">claude mcp add schema-gov-it \
   -- npx -y github:italia/dati-semantic-mcp</pre>
-
-          <h3 class="h5 mt-4">
-            <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-software"></use></svg>
-            Claude Code — modalità HTTP/Docker
-          </h3>
-          <pre class="code-block">claude mcp add --transport http \
-  schema-gov-it http://localhost:3000/mcp</pre>
+            <p class="text-muted small mb-1">Configurazione manuale equivalente in <code>~/.claude.json</code>:</p>
+            <pre class="code-block">{
+  "mcpServers": {
+    "schema-gov-it": {
+      "command": "npx",
+      "args": ["-y", "github:italia/dati-semantic-mcp"]
+    }
+  }
+}</pre>
+          </div>
         </div>
 
         <div class="col-12 col-md-6">
-          <h3 class="h5">
-            <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-github"></use></svg>
-            VS Code / Cursor (<code>.vscode/mcp.json</code>)
-          </h3>
-          <pre class="code-block">{
+          <div class="feature-card">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-software"></use></svg>
+              Claude Code - modalita HTTP/SSE
+            </h3>
+            <pre class="code-block">claude mcp add --transport http \
+  schema-gov-it http://localhost:3000/mcp</pre>
+            <p class="text-muted small mb-1">Configurazione manuale equivalente in <code>~/.claude.json</code>:</p>
+            <pre class="code-block">{
+  "mcpServers": {
+    "schema-gov-it": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}</pre>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <div class="feature-card">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-github"></use></svg>
+              VS Code / Cursor - stdio
+            </h3>
+            <p class="small text-muted">In <code>.vscode/mcp.json</code>:</p>
+            <pre class="code-block">{
   "servers": {
     "schema-gov-it": {
       "command": "npx",
@@ -579,10 +799,25 @@ schema-gov-it-mcp</pre>
     }
   }
 }</pre>
-          <p class="mt-3 text-muted small">
-            Per la modalità HTTP aggiungere invece:
-            <code>"type": "http", "url": "http://localhost:3000/mcp"</code>
-          </p>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <div class="feature-card">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-link"></use></svg>
+              VS Code / Cursor - HTTP/SSE
+            </h3>
+            <p class="small text-muted">Quando il server gira gia via Docker o deployment remoto:</p>
+            <pre class="code-block">{
+  "servers": {
+    "schema-gov-it": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}</pre>
+          </div>
         </div>
 
       </div>
@@ -599,7 +834,7 @@ schema-gov-it-mcp</pre>
       <div class="row mb-4">
         <div class="col-12 text-center">
           <h2>Esempi di utilizzo</h2>
-          <p class="lead">Cosa puoi chiedere all'agente AI una volta configurato il server</p>
+          <p class="lead">Prompt coerenti con gli esempi del README corrente</p>
         </div>
       </div>
 
@@ -615,6 +850,20 @@ schema-gov-it-mcp</pre>
               </div>
               <p><em>"Cerca concetti relativi alla 'Sanità' e dimmi quali sono le classi principali."</em></p>
               <p class="text-muted small mb-0">→ usa <code>search_concepts</code> + <code>inspect_concept</code></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6 col-esempio">
+          <div class="callout note h-100">
+            <div class="callout-inner">
+              <div class="callout-title">
+                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-user"></use></svg>
+                <span class="visually-hidden">Esempio:</span>
+                <span class="text">Deep dive su un concetto</span>
+              </div>
+              <p><em>"Analizza la classe Persona e dimmi con chi e collegata."</em></p>
+              <p class="text-muted small mb-0">→ usa <code>inspect_concept</code></p>
             </div>
           </div>
         </div>
@@ -689,15 +938,85 @@ schema-gov-it-mcp</pre>
           </div>
         </div>
 
+        <div class="col-12 col-md-6 col-esempio">
+          <div class="callout note h-100">
+            <div class="callout-inner">
+              <div class="callout-title">
+                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-settings"></use></svg>
+                <span class="visually-hidden">Esempio:</span>
+                <span class="text">Ottimizza l'uso del server</span>
+              </div>
+              <p><em>"Come posso ottimizzare le mie query?"</em></p>
+              <p class="text-muted small mb-0">→ usa <code>analyze_usage</code></p>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </section>
 
 
   <!-- =====================================================================
+       NOTE TECNICHE
+  ====================================================================== -->
+  <section id="note-tecniche" class="py-5">
+    <div class="container">
+      <div class="row mb-4">
+        <div class="col-12 text-center">
+          <h2>Note tecniche</h2>
+          <p class="lead">Comportamenti operativi e accorgimenti riportati nel README</p>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="feature-card">
+            <h3 class="h5">Endpoint esterni</h3>
+            <p class="small">Usa <code>recommend_external_endpoints</code> per una short list curata e <code>list_linked_endpoints</code> per scoprire i servizi pubblicati nel catalogo via metadata DCAT.</p>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="feature-card">
+            <h3 class="h5">Riduzione token</h3>
+            <p class="small"><code>query_external_endpoint</code> comprime i risultati e tronca le risposte troppo estese. Per query esterne conviene indicare sempre un <code>LIMIT</code> esplicito.</p>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="feature-card">
+            <h3 class="h5">Compatibilita HTTP</h3>
+            <p class="small">Le query verso endpoint esterni usano header piu simili a un browser; se il <code>POST</code> fallisce con <code>403</code>, il server riprova automaticamente in <code>GET</code>.</p>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="feature-card">
+            <h3 class="h5">Prefissi automatici</h3>
+            <p class="small">Nelle query interne non serve dichiarare <code>rdf:</code>, <code>owl:</code> o <code>skos:</code>. I prefissi vengono aggiunti dal server; sugli endpoint esterni no.</p>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="feature-card">
+            <h3 class="h5">Sicurezza input</h3>
+            <p class="small">I parametri utente vengono sanitizzati per ridurre il rischio di SPARQL injection e mantenere il comportamento degli strumenti prevedibile.</p>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="feature-card">
+            <h3 class="h5">Logging e trasporto</h3>
+            <p class="small">Le chiamate finiscono in <code>logs/usage_log.jsonl</code>. Il server supporta <code>stdio</code> per uso locale e HTTP/SSE con <code>MCP_TRANSPORT=sse</code> per ambienti remoti o Docker.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  </main>
+
+
+  <!-- =====================================================================
        FOOTER
   ====================================================================== -->
-  <footer class="it-footer">
+  <footer class="it-footer" id="site-footer">
     <div class="it-footer-main">
       <div class="container">
 
