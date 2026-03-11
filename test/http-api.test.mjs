@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { TEST_TTL } from "./fixtures.mjs";
 
 const HOST = "127.0.0.1";
 const PORT = 3400 + Math.floor(Math.random() * 1000);
@@ -68,7 +68,7 @@ test("GET /health returns service status", async () => {
 });
 
 test("POST /upload + GET /sparql/{id} can query uploaded ontology", async () => {
-  const ttl = await readFile("test.ttl", "utf8");
+  const ttl = TEST_TTL;
 
   const uploadRes = await fetch(`${BASE_URL}/upload`, {
     method: "POST",
@@ -123,7 +123,7 @@ test("POST /upload rejects payload > 1MB", async () => {
 });
 
 test("GET /sparql/{id} without query returns 400", async () => {
-  const ttl = await readFile("test.ttl", "utf8");
+  const ttl = TEST_TTL;
   const uploadRes = await fetch(`${BASE_URL}/upload`, {
     method: "POST",
     headers: { "Content-Type": "text/turtle" },
