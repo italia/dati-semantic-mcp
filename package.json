@@ -15,7 +15,8 @@
     "prepare": "npm run build",
     "start": "node dist/index.js",
     "test:http": "node --test test/http-api.test.mjs",
-    "test": "npm run build && npm run test:http"
+    "test:mcp": "node --test test/mcp-protocol.test.mjs",
+    "test": "npm run build && node --test test/http-api.test.mjs test/mcp-protocol.test.mjs"
   },
   "repository": {
     "type": "git",

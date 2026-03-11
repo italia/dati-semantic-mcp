@@ -331,10 +331,20 @@ async function executeSparql(
         return getResponse.json() as Promise<SparqlResult>;
       }
 
-      throw new Error(`SPARQL request failed: ${getResponse.status} ${getResponse.statusText}`);
+      const getErrBody = await getResponse.text().catch(() => "");
+      throw new Error(buildSparqlDiagnosticMessage(getResponse.status, getResponse.statusText, getErrBody));
     }
 
-    throw new Error(`SPARQL request failed: ${postResponse.status} ${postResponse.statusText}`);
+    const postErrBody = await postResponse.text().catch(() => "");
+    throw new Error(buildSparqlDiagnosticMessage(postResponse.status, postResponse.statusText, postErrBody));
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(
+        `SPARQL timeout after ${timeoutMs}ms${endpoint !== ENDPOINT ? ` (endpoint: ${endpoint})` : ""}. ` +
+        `Suggestion: add LIMIT, simplify OPTIONAL/UNION blocks, or split into smaller queries.`
+      );
+    }
+    throw error;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -388,6 +398,36 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
   return String(error);
+}
+
+/** Build a diagnostic error message from a failed SPARQL HTTP response */
+function buildSparqlDiagnosticMessage(
+  status: number,
+  statusText: string,
+  body: string
+): string {
+  const preview = body.slice(0, 400).trim();
+
+  if (/timeout|time.?limit|time limit exceeded/i.test(body)) {
+    return `SPARQL endpoint timeout (HTTP ${status}). The query exceeded the server time limit. Suggestion: add LIMIT, simplify OPTIONAL/UNION blocks, or split into smaller queries.`;
+  }
+  if (/result.?set.?too.?large|too many results|maxRows/i.test(body)) {
+    return `SPARQL result set too large (HTTP ${status}). Suggestion: add a LIMIT clause or narrow your filters.`;
+  }
+  if (/undefined.?prefix|unknown.?prefix|undefined.?namespace|QName/i.test(body)) {
+    return `SPARQL prefix not defined (HTTP ${status}). Check that all namespace prefixes used in the query are declared.${preview ? ` Details: ${preview}` : ""}`;
+  }
+  if (/syntax.?error|parse.?error|lexical.?error|unexpected token/i.test(body)) {
+    return `SPARQL syntax error (HTTP ${status}). Check query syntax.${preview ? ` Details: ${preview}` : ""}`;
+  }
+  if (status === 503 || /service.?unavailable|temporarily unavailable/i.test(body)) {
+    return `SPARQL endpoint temporarily unavailable (HTTP ${status}). Retry later.`;
+  }
+  if (status === 500) {
+    return `SPARQL internal server error (HTTP 500).${preview ? ` Details: ${preview}` : " No error details available from endpoint."}`;
+  }
+
+  return `SPARQL request failed: ${status} ${statusText}${preview ? `. Details: ${preview}` : ""}`;
 }
 
 /** Truncate text to CHARACTER_LIMIT with indicator */
@@ -1223,14 +1263,20 @@ server.registerTool(
 **Args:**
 - keyword: Search term (e.g. 'amministrazione')
 - limit: Maximum results (default: 10)
+- resource_type: (optional) Filter by type: "class", "property", "concept"
+- ontology_filter: (optional) URI prefix to restrict the search (e.g. 'https://w3id.org/italia/onto/COV/')
+- prefer_core: (optional) If true, results from core ontologies (COV, CPV, CLV, l0) are ranked first
 
 **Returns:**
 - Matching subjects with type and label
 
-**Use when:** You don't know the exact URI of a concept.`,
+**Use when:** You don't know the exact URI of a concept. Use resource_type and ontology_filter to reduce noise.`,
     inputSchema: {
       keyword: z.string().describe("The search term (e.g. 'amministrazione')"),
       limit: z.number().optional().default(10),
+      resource_type: z.enum(["class", "property", "concept"]).optional().describe('Filter by resource type: "class", "property", or "concept"'),
+      ontology_filter: z.string().optional().describe("Restrict results to URIs starting with this prefix (e.g. 'https://w3id.org/italia/onto/COV/')"),
+      prefer_core: z.boolean().optional().default(false).describe("If true, rank results from COV, CPV, CLV, l0 ontologies first"),
     },
     annotations: {
       readOnlyHint: true,
@@ -1239,19 +1285,39 @@ server.registerTool(
       openWorldHint: true,
     },
   },
-  async ({ keyword, limit }) => {
+  async ({ keyword, limit, resource_type, ontology_filter, prefer_core }) => {
     const safeKeyword = sanitizeSparqlString(keyword);
+
+    const typeValues = (() => {
+      switch (resource_type) {
+        case "class":    return "owl:Class rdfs:Class";
+        case "property": return "owl:ObjectProperty owl:DatatypeProperty owl:AnnotationProperty";
+        case "concept":  return "skos:Concept skos:ConceptScheme";
+        default:         return "owl:Class owl:ObjectProperty owl:DatatypeProperty skos:Concept";
+      }
+    })();
+
+    const ontologyFilterClause = ontology_filter
+      ? `FILTER(STRSTARTS(STR(?subject), "${sanitizeSparqlString(ontology_filter)}"))`
+      : "";
+
+    const orderClause = prefer_core
+      ? `ORDER BY IF(REGEX(STR(?subject), "italia/onto/(COV|CPV|CLV|l0)/"), 0, 1) ?label`
+      : "";
+
     const query = `
       SELECT DISTINCT ?subject ?type ?label
       WHERE {
-        VALUES ?type { owl:Class owl:ObjectProperty owl:DatatypeProperty skos:Concept }
+        VALUES ?type { ${typeValues} }
         ?subject a ?type .
         ?subject rdfs:label|skos:prefLabel|dct:title ?label .
         FILTER(REGEX(STR(?label), "${safeKeyword}", "i"))
+        ${ontologyFilterClause}
       }
+      ${orderClause}
       LIMIT ${limit}
     `;
-    return executeSparqlTool("search_concepts", { keyword, limit }, query);
+    return executeSparqlTool("search_concepts", { keyword, limit, resource_type, ontology_filter, prefer_core }, query);
   }
 );
 
@@ -1722,6 +1788,203 @@ server.registerTool(
           },
         },
         rowCount: count,
+      };
+    });
+  }
+);
+
+server.registerTool(
+  "list_instances_of_class",
+  {
+    title: "List Instances of Class",
+    description: `List instances of a given class in the catalog.
+
+**Args:**
+- class_uri: URI of the class (e.g. 'https://w3id.org/italia/onto/COV/PublicOrganization')
+- limit: Items per page (default: 20, max: 200)
+- offset: Items to skip (default: 0)
+
+**Returns:**
+- instances: list of URIs with labels
+- pagination: total count, offset, has_more
+
+**Use when:** You found a class and want to know if it has real instances (i.e., whether it is used in the catalog, not just defined theoretically).`,
+    inputSchema: {
+      class_uri: z.string().describe("URI of the class to list instances of"),
+      limit: z.number().optional().default(20).describe("Items per page (max 200)"),
+      offset: z.number().optional().default(0).describe("Items to skip"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ class_uri, limit, offset }) => {
+    const safeUri = sanitizeSparqlUri(class_uri);
+    const safeLimit = Math.min(limit, 200);
+
+    const dataQuery = `
+      SELECT DISTINCT ?instance ?label
+      WHERE {
+        ?instance a <${safeUri}> .
+        OPTIONAL {
+          ?instance rdfs:label|l0:name|skos:prefLabel ?label .
+          FILTER(LANG(?label) = "" || LANG(?label) = "it" || LANG(?label) = "en")
+        }
+      }
+      ORDER BY ?label ?instance
+      LIMIT ${safeLimit}
+      OFFSET ${offset}
+    `;
+    const countQuery = `
+      SELECT (COUNT(DISTINCT ?instance) AS ?total)
+      WHERE { ?instance a <${safeUri}> }
+    `;
+
+    return executeTool("list_instances_of_class", { class_uri, limit: safeLimit, offset }, async () => {
+      const [dataResult, countResult] = await Promise.all([
+        executeSparql(dataQuery),
+        executeSparql(countQuery),
+      ]);
+
+      const instances = compressSparqlResult(dataResult);
+      const count = dataResult.results?.bindings?.length ?? 0;
+      const total = parseInt(countResult.results?.bindings?.[0]?.total?.value ?? "0", 10);
+
+      return {
+        success: true,
+        data: {
+          instances,
+          pagination: {
+            total,
+            count,
+            offset,
+            has_more: offset + safeLimit < total,
+            next_offset: offset + safeLimit < total ? offset + safeLimit : null,
+          },
+        },
+        rowCount: count,
+      };
+    });
+  }
+);
+
+server.registerTool(
+  "find_recommended_scheme_for_property",
+  {
+    title: "Find Recommended Scheme for Property",
+    description: `Given a property URI, find its range class and any associated SKOS ConceptSchemes in the catalog.
+
+**Args:**
+- property_uri: URI of the property (e.g. 'https://w3id.org/italia/onto/COV/hasCategory')
+
+**Returns:**
+- range: the rdfs:range of the property (if declared)
+- instance_count: number of instances of the range type in the catalog
+- schemes: SKOS ConceptSchemes whose members are typed as the range class
+- suggestion: actionable advice (use existing scheme, or create a local one)
+
+**Use when:** You want to know what controlled vocabulary values to use for a property, or whether an official ConceptScheme exists.`,
+    inputSchema: {
+      property_uri: z.string().describe("URI of the property to analyze"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ property_uri }) => {
+    const safePropUri = sanitizeSparqlUri(property_uri);
+
+    return executeTool<unknown>("find_recommended_scheme_for_property", { property_uri }, async () => {
+      // Step 1: Get the range of the property
+      const rangeQuery = `
+        SELECT ?range ?rangeLabel WHERE {
+          <${safePropUri}> rdfs:range ?range .
+          OPTIONAL { ?range rdfs:label|skos:prefLabel ?rangeLabel . FILTER(LANG(?rangeLabel) = "" || LANG(?rangeLabel) = "it") }
+        }
+        LIMIT 5
+      `;
+      const rangeResult = await executeSparql(rangeQuery);
+      const rangeBindings = rangeResult.results?.bindings ?? [];
+
+      if (rangeBindings.length === 0) {
+        return {
+          success: true,
+          data: {
+            property: safePropUri,
+            range: null,
+            instance_count: 0,
+            schemes: [],
+            suggestion: "No rdfs:range declared for this property. Inspect it with get_property_details for more context.",
+          },
+        };
+      }
+
+      const rangeUri = rangeBindings[0]?.range?.value ?? "";
+      const rangeLabel = rangeBindings[0]?.rangeLabel?.value ?? "";
+      let safeRangeUri: string;
+      try {
+        safeRangeUri = sanitizeSparqlUri(rangeUri);
+      } catch {
+        return {
+          success: true,
+          data: {
+            property: safePropUri,
+            range: { uri: rangeUri, label: rangeLabel },
+            instance_count: 0,
+            schemes: [],
+            suggestion: `Range is a blank node or non-HTTP URI (${rangeUri}). Cannot look up ConceptSchemes automatically.`,
+          },
+        };
+      }
+
+      // Step 2 (parallel): count instances and find ConceptSchemes
+      const countQuery = `
+        SELECT (COUNT(DISTINCT ?instance) AS ?total)
+        WHERE { ?instance a <${safeRangeUri}> }
+      `;
+      const schemesQuery = `
+        SELECT DISTINCT ?scheme ?schemeLabel WHERE {
+          ?concept a <${safeRangeUri}> ; skos:inScheme ?scheme .
+          OPTIONAL { ?scheme rdfs:label|dct:title|skos:prefLabel ?schemeLabel . FILTER(LANG(?schemeLabel) = "" || LANG(?schemeLabel) = "it") }
+        }
+        LIMIT 10
+      `;
+
+      const [countResult, schemesResult] = await Promise.all([
+        executeSparql(countQuery),
+        executeSparql(schemesQuery),
+      ]);
+
+      const instanceCount = parseInt(countResult.results?.bindings?.[0]?.total?.value ?? "0", 10);
+      const schemes = (schemesResult.results?.bindings ?? []).map(b => ({
+        uri: b.scheme?.value ?? "",
+        label: b.schemeLabel?.value ?? "",
+      }));
+
+      let suggestion: string;
+      if (schemes.length > 0) {
+        suggestion = `${schemes.length} ConceptScheme(s) found for range <${safeRangeUri}>. Use browse_vocabulary or search_in_vocabulary to explore them.`;
+      } else if (instanceCount > 0) {
+        suggestion = `${instanceCount} instance(s) of range <${safeRangeUri}> exist in the catalog but none belong to a formal ConceptScheme. You can use list_instances_of_class to inspect them directly.`;
+      } else {
+        suggestion = `No instances or ConceptSchemes found for range <${safeRangeUri}>. Consider defining a local SKOS ConceptScheme for this property.`;
+      }
+
+      return {
+        success: true,
+        data: {
+          property: safePropUri,
+          range: { uri: safeRangeUri, label: rangeLabel },
+          instance_count: instanceCount,
+          schemes,
+          suggestion,
+        },
       };
     });
   }
@@ -2279,6 +2542,166 @@ server.registerTool(
       LIMIT ${limit}
     `;
     return executeSparqlTool("list_identifiers", { identifierType, limit }, query);
+  }
+);
+
+server.registerTool(
+  "resolve_territorial_uri",
+  {
+    title: "Resolve Territorial URI",
+    description: `Resolve an Italian territorial code to its canonical CLV URI with labels and related URIs.
+
+**Args:**
+- code_type: Type of code: "istat-comune", "istat-provincia", "istat-regione", or "belfiore"
+- code: The code value (e.g. "046030" for ISTAT comune, "F205" for Belfiore)
+- date: (optional) ISO date string (e.g. "2022-08-12") — noted in output, full temporal filtering not yet implemented
+
+**Returns:**
+- uri: canonical CLV URI
+- name: official name
+- code_type and code
+- related: connected territorial URIs (province for cities, region for provinces)
+- date_note: reminder if date was provided
+
+**Use when:** You have a raw territorial code (ISTAT or Belfiore) and need the official semantic URI to use in JSON-LD or RDF modeling.`,
+    inputSchema: {
+      code_type: z.enum(["istat-comune", "istat-provincia", "istat-regione", "belfiore"]).describe("Type of territorial code"),
+      code: z.string().describe("The code value (e.g. '046030', 'F205', '001')"),
+      date: z.string().optional().describe("Optional ISO date for temporal context (e.g. '2022-08-12')"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ code_type, code, date }) => {
+    const safeCode = sanitizeSparqlString(code);
+
+    return executeTool<unknown>("resolve_territorial_uri", { code_type, code, date }, async () => {
+      let mainQuery: string;
+
+      if (code_type === "istat-comune") {
+        mainQuery = `
+          SELECT DISTINCT ?uri ?name WHERE {
+            ?uri a clv:City ;
+                 skos:notation "${safeCode}" ;
+                 l0:name ?name .
+          }
+          LIMIT 5
+        `;
+      } else if (code_type === "istat-provincia") {
+        mainQuery = `
+          SELECT DISTINCT ?uri ?name WHERE {
+            ?uri a clv:Province ;
+                 skos:notation "${safeCode}" ;
+                 l0:name ?name .
+          }
+          LIMIT 5
+        `;
+      } else if (code_type === "istat-regione") {
+        mainQuery = `
+          SELECT DISTINCT ?uri ?name WHERE {
+            ?uri a clv:Region ;
+                 skos:notation "${safeCode}" ;
+                 l0:name ?name .
+          }
+          LIMIT 5
+        `;
+      } else {
+        // belfiore: search via hasIdentifier URI pattern
+        mainQuery = `
+          SELECT DISTINCT ?uri ?name WHERE {
+            ?uri clv:hasIdentifier ?id .
+            FILTER(CONTAINS(STR(?id), "/cadastral-code/${safeCode}"))
+            OPTIONAL { ?uri l0:name ?name }
+            OPTIONAL { ?uri rdfs:label ?name }
+          }
+          LIMIT 5
+        `;
+      }
+
+      const mainResult = await executeSparql(mainQuery);
+      const mainBindings = mainResult.results?.bindings ?? [];
+
+      if (mainBindings.length === 0) {
+        return {
+          success: true,
+          data: {
+            found: false,
+            code_type,
+            code,
+            message: `No result found for ${code_type} = "${code}". Check code format (e.g. ISTAT comune codes are 6 digits like "046030").`,
+          },
+        };
+      }
+
+      // Deduplicate: pick the binding with the longest name (historical names may repeat)
+      const seen = new Map<string, string>();
+      for (const b of mainBindings) {
+        const uri = b.uri?.value ?? "";
+        const name = b.name?.value ?? "";
+        const existing = seen.get(uri);
+        if (!existing || name.length > existing.length) seen.set(uri, name);
+      }
+      const primaryUri = seen.keys().next().value ?? "";
+      const primaryName = seen.get(primaryUri) ?? "";
+
+      // Query related territorial URIs (parent entities)
+      let relatedQuery: string | null = null;
+      if (code_type === "istat-comune") {
+        relatedQuery = `
+          SELECT DISTINCT ?related ?relatedName ?relatedCode ?relatedType WHERE {
+            ?city a clv:City ; skos:notation "${safeCode}" .
+            ?city ?p ?related .
+            ?related a ?relatedType .
+            VALUES ?relatedType { clv:Province clv:Region }
+            OPTIONAL { ?related l0:name ?relatedName }
+            OPTIONAL { ?related skos:notation ?relatedCode }
+          }
+          LIMIT 5
+        `;
+      } else if (code_type === "istat-provincia") {
+        relatedQuery = `
+          SELECT DISTINCT ?related ?relatedName ?relatedCode ?relatedType WHERE {
+            ?prov a clv:Province ; skos:notation "${safeCode}" .
+            ?prov ?p ?related .
+            ?related a ?relatedType .
+            VALUES ?relatedType { clv:Region }
+            OPTIONAL { ?related l0:name ?relatedName }
+            OPTIONAL { ?related skos:notation ?relatedCode }
+          }
+          LIMIT 3
+        `;
+      }
+
+      const related: Array<{ uri: string; name: string; code: string; type: string }> = [];
+      if (relatedQuery) {
+        const relatedResult = await executeSparql(relatedQuery);
+        for (const b of relatedResult.results?.bindings ?? []) {
+          related.push({
+            uri: b.related?.value ?? "",
+            name: b.relatedName?.value ?? "",
+            code: b.relatedCode?.value ?? "",
+            type: (b.relatedType?.value ?? "").split("/").pop() ?? "",
+          });
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          found: true,
+          code_type,
+          code,
+          uri: primaryUri,
+          name: primaryName,
+          related,
+          ...(date ? { date_note: `Date "${date}" was provided. Full temporal filtering is not yet implemented; results may include historical or future entities.` } : {}),
+        },
+      };
+    });
   }
 );
 
