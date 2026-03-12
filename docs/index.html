@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
   <title>Schema.gov.it MCP Server - Interazione semantica con ontologie e cataloghi della PA</title>
-  <meta name="description" content="Server MCP per schema.gov.it con 31 strumenti in 10 categorie: ontologie, vocabolari, dataset, analytics semantiche ed endpoint SPARQL esterni." />
+  <meta name="description" content="Server MCP per schema.gov.it con 38 strumenti in 12 aree: ontologie, vocabolari, dataset, endpoint SPARQL esterni, ontologie locali e workflow di upload." />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 73'%3E%3Cpath fill='%23FFF' d='M0 6h64v64H0z'/%3E%3Ctext x='26' y='51.5' fill='%2306C' font-family='Titillium Web' font-size='48' font-weight='700' letter-spacing='-1.2'%3ES%3C/text%3E%3Ctext x='32' y='66' fill='%2306C' font-family='Roboto Mono, monospace' font-size='11' font-weight='700' letter-spacing='0.8' text-anchor='middle'%3EMCP%3C/text%3E%3Ccircle cx='17.5' cy='25' r='4.5' fill='%2306C'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/css/bootstrap-italia.min.css" />
   <style>
@@ -311,8 +311,8 @@
               navigare vocabolari controllati e interrogare endpoint SPARQL interni ed esterni.
             </p>
             <div class="mb-4">
-              <span class="status-pill">31 strumenti</span>
-              <span class="status-pill">10 categorie</span>
+              <span class="status-pill">38 strumenti</span>
+              <span class="status-pill">12 aree</span>
               <span class="status-pill">stdio + HTTP/SSE</span>
             </div>
             <div class="it-btn-container">
@@ -340,12 +340,12 @@
     <div class="container">
       <div class="row text-center gy-3">
         <div class="col-6 col-md-3">
-          <div class="stat-number">31</div>
+          <div class="stat-number">38</div>
           <div class="small">strumenti MCP</div>
         </div>
         <div class="col-6 col-md-3">
-          <div class="stat-number">10</div>
-          <div class="small">categorie funzionali</div>
+          <div class="stat-number">12</div>
+          <div class="small">aree funzionali</div>
         </div>
         <div class="col-6 col-md-3">
           <div class="stat-number" style="font-size:1.5rem">SPARQL</div>
@@ -443,7 +443,7 @@
       <div class="row mb-4">
         <div class="col-12 text-center">
           <h2>Strumenti disponibili</h2>
-          <p class="lead">31 strumenti organizzati in 10 categorie per esplorazione, analisi e interoperabilita semantica</p>
+          <p class="lead">38 strumenti organizzati in 12 aree per esplorazione, analisi, interoperabilita e lavoro su ontologie locali</p>
         </div>
       </div>
 
@@ -487,21 +487,19 @@
           </article>
         </div>
 
-        <!-- Modello Dati / Ontologie -->
+        <!-- Ontologie -->
         <div class="col-12 col-md-6 col-lg-4">
           <article class="it-card rounded shadow border px-4 py-4 h-100">
             <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-list"></use></svg>
             <h3 class="it-card-title h5">
-              Modello Dati / Ontologie
-              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">4</span>
+              Ontologie
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">2</span>
             </h3>
             <div class="it-card-body">
-              <p class="it-card-text small">Naviga classi, proprietà e relazioni delle ontologie OntoPiA nel catalogo.</p>
+              <p class="it-card-text small">Accedi al catalogo delle ontologie e alle classi e proprieta definite in ciascun modello.</p>
               <ul class="list-unstyled small mt-2">
                 <li><code>list_ontologies</code></li>
                 <li><code>explore_ontology</code></li>
-                <li><code>list_properties</code></li>
-                <li><code>get_property_details</code></li>
               </ul>
             </div>
           </article>
@@ -516,7 +514,7 @@
               <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">3</span>
             </h3>
             <div class="it-card-body">
-              <p class="it-card-text small">Esplora ConceptScheme: da codici ICD a classificazioni ATECO e tipologie di enti.</p>
+              <p class="it-card-text small">Cerca, naviga e approfondisci ConceptScheme e termini controllati direttamente dalla chat.</p>
               <ul class="list-unstyled small mt-2">
                 <li><code>list_vocabularies</code></li>
                 <li><code>search_in_vocabulary</code></li>
@@ -566,20 +564,41 @@
           </article>
         </div>
 
+        <!-- Proprieta e Relazioni -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-link"></use></svg>
+            <h3 class="it-card-title h5">
+              Proprieta e Relazioni
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">4</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">Analizza proprieta RDF, istanze di classi e collegamenti tra schemi e valori controllati.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>list_properties</code></li>
+                <li><code>get_property_details</code></li>
+                <li><code>list_instances_of_class</code></li>
+                <li><code>find_recommended_scheme_for_property</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
         <!-- Dati Geografici -->
         <div class="col-12 col-md-6 col-lg-4">
           <article class="it-card rounded shadow border px-4 py-4 h-100">
             <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-pin"></use></svg>
             <h3 class="it-card-title h5">
               Dati Geografici (Italia)
-              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">3</span>
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">4</span>
             </h3>
             <div class="it-card-body">
-              <p class="it-card-text small">Comuni, province e identificatori CLV con codici ISTAT, Belfiore e sigle automobilistiche.</p>
+              <p class="it-card-text small">Comuni, province, identificatori CLV e risoluzione di codici territoriali verso URI canonici.</p>
               <ul class="list-unstyled small mt-2">
                 <li><code>list_municipalities</code></li>
                 <li><code>list_provinces</code></li>
                 <li><code>list_identifiers</code></li>
+                <li><code>resolve_territorial_uri</code></li>
               </ul>
             </div>
           </article>
@@ -601,6 +620,42 @@
                 <li><code>find_external_alignments</code></li>
                 <li><code>explore_external_endpoint</code></li>
                 <li><code>recommend_external_endpoints</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <!-- Ontologie Locali -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-files"></use></svg>
+            <h3 class="it-card-title h5">
+              Ontologie Locali
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">3</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">Carica, interroga e confronta file RDF o OWL locali senza pubblicarli nel catalogo remoto.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>inspect_local_ontology</code></li>
+                <li><code>query_local_ontology</code></li>
+                <li><code>compare_local_with_remote</code></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <!-- Workflow Upload HTTP -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="it-card rounded shadow border px-4 py-4 h-100">
+            <svg class="tool-card-icon" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-upload"></use></svg>
+            <h3 class="it-card-title h5">
+              Upload Workflow
+              <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">1</span>
+            </h3>
+            <div class="it-card-body">
+              <p class="it-card-text small">In modalita HTTP puoi caricare un file RDF, ottenere un identificativo temporaneo e interrogarlo via SPARQL.</p>
+              <ul class="list-unstyled small mt-2">
+                <li><code>query_uploaded_store</code></li>
               </ul>
             </div>
           </article>
@@ -853,115 +908,102 @@ node dist/index.js</pre>
       <div class="row g-3">
 
         <div class="col-12 col-md-6 col-esempio">
-          <div class="callout note h-100">
-            <div class="callout-inner">
-              <div class="callout-title">
-                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-search"></use></svg>
-                <span class="visually-hidden">Esempio:</span>
-                <span class="text">Esplora il catalogo semantico</span>
-              </div>
+          <article class="feature-card h-100">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-search"></use></svg>
+              Esplora il catalogo semantico
+            </h3>
               <p><em>"Cerca concetti relativi alla 'Sanità' e dimmi quali sono le classi principali."</em></p>
               <p class="text-muted small mb-0">→ usa <code>search_concepts</code> + <code>inspect_concept</code></p>
-            </div>
-          </div>
+          </article>
         </div>
 
         <div class="col-12 col-md-6 col-esempio">
-          <div class="callout note h-100">
-            <div class="callout-inner">
-              <div class="callout-title">
-                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-user"></use></svg>
-                <span class="visually-hidden">Esempio:</span>
-                <span class="text">Deep dive su un concetto</span>
-              </div>
+          <article class="feature-card h-100">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-user"></use></svg>
+              Deep dive su un concetto
+            </h3>
               <p><em>"Analizza la classe Persona e dimmi con chi e collegata."</em></p>
               <p class="text-muted small mb-0">→ usa <code>inspect_concept</code></p>
-            </div>
-          </div>
+          </article>
         </div>
 
         <div class="col-12 col-md-6 col-esempio">
-          <div class="callout note h-100">
-            <div class="callout-inner">
-              <div class="callout-title">
-                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-pin"></use></svg>
-                <span class="visually-hidden">Esempio:</span>
-                <span class="text">Dati geografici</span>
-              </div>
+          <article class="feature-card h-100">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-pin"></use></svg>
+              Dati geografici
+            </h3>
               <p><em>"Trova i comuni della Lombardia e il loro codice Belfiore."</em></p>
               <p class="text-muted small mb-0">→ usa <code>list_municipalities</code></p>
-            </div>
-          </div>
+          </article>
         </div>
 
         <div class="col-12 col-md-6 col-esempio">
-          <div class="callout note h-100">
-            <div class="callout-inner">
-              <div class="callout-title">
-                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-exchange"></use></svg>
-                <span class="visually-hidden">Esempio:</span>
-                <span class="text">Endpoint SPARQL esterni</span>
-              </div>
+          <article class="feature-card h-100">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-exchange"></use></svg>
+              Endpoint SPARQL esterni
+            </h3>
               <p><em>"Esegui una query SPARQL su DBpedia per trovare le città italiane e collegale con quelle di schema.gov.it."</em></p>
               <p class="text-muted small mb-0">→ usa <code>query_external_endpoint</code> + <code>find_external_alignments</code></p>
-            </div>
-          </div>
+          </article>
         </div>
 
         <div class="col-12 col-md-6 col-esempio">
-          <div class="callout note h-100">
-            <div class="callout-inner">
-              <div class="callout-title">
-                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-chart-line"></use></svg>
-                <span class="visually-hidden">Esempio:</span>
-                <span class="text">Analisi qualità ontologica</span>
-              </div>
+          <article class="feature-card h-100">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-chart-line"></use></svg>
+              Analisi qualita ontologica
+            </h3>
               <p><em>"Controlla se ci sono sovrapposizioni tra i concetti di Luogo e individua label mancanti."</em></p>
               <p class="text-muted small mb-0">→ usa <code>check_overlaps</code> + <code>check_quality</code></p>
-            </div>
-          </div>
+          </article>
         </div>
 
         <div class="col-12 col-md-6 col-esempio">
-          <div class="callout note h-100">
-            <div class="callout-inner">
-              <div class="callout-title">
-                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-list"></use></svg>
-                <span class="visually-hidden">Esempio:</span>
-                <span class="text">Esplora ontologie OntoPiA</span>
-              </div>
+          <article class="feature-card h-100">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-list"></use></svg>
+              Esplora ontologie OntoPiA
+            </h3>
               <p><em>"Elenca le ontologie disponibili e mostrami le classi di quella sui Servizi Pubblici."</em></p>
               <p class="text-muted small mb-0">→ usa <code>list_ontologies</code> + <code>explore_ontology</code></p>
-            </div>
-          </div>
+          </article>
         </div>
 
         <div class="col-12 col-md-6 col-esempio">
-          <div class="callout note h-100">
-            <div class="callout-inner">
-              <div class="callout-title">
-                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-info-circle"></use></svg>
-                <span class="visually-hidden">Esempio:</span>
-                <span class="text">Suggerisci endpoint utili</span>
-              </div>
+          <article class="feature-card h-100">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-info-circle"></use></svg>
+              Suggerisci endpoint utili
+            </h3>
               <p><em>"Consigliami alcuni endpoint SPARQL pubblici da interrogare insieme a schema.gov.it."</em></p>
               <p class="text-muted small mb-0">→ usa <code>recommend_external_endpoints</code></p>
-            </div>
-          </div>
+          </article>
         </div>
 
         <div class="col-12 col-md-6 col-esempio">
-          <div class="callout note h-100">
-            <div class="callout-inner">
-              <div class="callout-title">
-                <svg class="icon"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-settings"></use></svg>
-                <span class="visually-hidden">Esempio:</span>
-                <span class="text">Ottimizza l'uso del server</span>
-              </div>
+          <article class="feature-card h-100">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-files"></use></svg>
+              Analizza un file locale
+            </h3>
+              <p><em>"Dammi una panoramica dell'ontologia in <code>/home/user/mia-ontologia.ttl</code> e dimmi quali classi posso riusare da schema.gov.it."</em></p>
+              <p class="text-muted small mb-0">→ usa <code>inspect_local_ontology</code> + <code>compare_local_with_remote</code></p>
+          </article>
+        </div>
+
+        <div class="col-12 col-md-6 col-esempio">
+          <article class="feature-card h-100">
+            <h3 class="h5">
+              <svg class="icon icon-sm me-1" aria-hidden="true"><use href="https://cdn.jsdelivr.net/npm/bootstrap-italia@latest/dist/svg/sprites.svg#it-settings"></use></svg>
+              Ottimizza l'uso del server
+            </h3>
               <p><em>"Come posso ottimizzare le mie query?"</em></p>
               <p class="text-muted small mb-0">→ usa <code>analyze_usage</code></p>
-            </div>
-          </div>
+          </article>
         </div>
 
       </div>
@@ -1010,6 +1052,12 @@ node dist/index.js</pre>
           <div class="feature-card">
             <h3 class="h5">Sicurezza input</h3>
             <p class="small">I parametri utente vengono sanitizzati per ridurre il rischio di SPARQL injection e mantenere il comportamento degli strumenti prevedibile.</p>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="feature-card">
+            <h3 class="h5">Ontologie locali e upload</h3>
+            <p class="small">I file RDF o OWL possono essere letti da path locali, inviati inline oppure caricati via <code>POST /upload</code>. Gli store caricati restano disponibili per un'ora e sono interrogabili anche tramite <code>/sparql/{id}</code>.</p>
           </div>
         </div>
         <div class="col-12 col-md-6 col-lg-4">
