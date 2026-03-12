@@ -17,11 +17,17 @@ server.registerTool(
 
 **Args:**
 - limit: Maximum number of ontologies to return (default: 50)
+- normalize_trailing_slash: If true, merge ontology IRIs that differ only by a final "/" (default: true)
+- include_variants: If true and normalization is enabled, include raw URI variants to expose catalog inconsistencies
 
 **Returns:**
-- List of ontology URIs with labels/titles, ordered alphabetically`,
+- List of ontology URIs with labels/titles, ordered alphabetically
+
+**Note:** Some ontologies are duplicated in the catalog with and without a trailing slash. By default this tool normalizes them, but you can inspect the raw variants when cleaning the catalog.`,
     inputSchema: {
       limit: z.number().optional().default(50),
+      normalize_trailing_slash: z.boolean().optional().default(true),
+      include_variants: z.boolean().optional().default(false),
     },
     annotations: {
       readOnlyHint: true,
@@ -30,17 +36,29 @@ server.registerTool(
       openWorldHint: true,
     },
   },
-  async ({ limit }) => {
-    const query = `
-      SELECT DISTINCT ?ont ?label
-      WHERE {
-        ?ont a owl:Ontology .
-        OPTIONAL { ?ont rdfs:label|dct:title ?label }
-      }
-      ORDER BY ?label
-      LIMIT ${limit}
-    `;
-    return executeSparqlTool("list_ontologies", { limit }, query);
+  async ({ limit, normalize_trailing_slash, include_variants }) => {
+    const query = normalize_trailing_slash
+      ? `
+        SELECT ?ont (SAMPLE(?labelRaw) AS ?label) (COUNT(DISTINCT ?rawOnt) AS ?variantCount) ${include_variants ? '(GROUP_CONCAT(DISTINCT STR(?rawOnt); separator=" | ") AS ?variants)' : ""}
+        WHERE {
+          ?rawOnt a owl:Ontology .
+          OPTIONAL { ?rawOnt rdfs:label|dct:title ?labelRaw }
+          BIND(IRI(REPLACE(STR(?rawOnt), "/$", "")) AS ?ont)
+        }
+        GROUP BY ?ont
+        ORDER BY ?label ?ont
+        LIMIT ${limit}
+      `
+      : `
+        SELECT DISTINCT ?ont ?label
+        WHERE {
+          ?ont a owl:Ontology .
+          OPTIONAL { ?ont rdfs:label|dct:title ?label }
+        }
+        ORDER BY ?label ?ont
+        LIMIT ${limit}
+      `;
+    return executeSparqlTool("list_ontologies", { limit, normalize_trailing_slash, include_variants }, query);
   }
 );
 
