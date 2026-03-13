@@ -38,6 +38,8 @@ Il server espone **34 strumenti** organizzati in 11 categorie:
 *   `explore_dataset`: Mostra dettagli e distribuzioni di un dataset.
 *   `preview_distribution`: Scarica e mostra le prime righe di una distribuzione CSV/JSON.
 
+Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il catalogo contiene soprattutto asset semantici pubblicati come dataset DCAT-AP_IT, ad esempio ontologie, vocabolari controllati e relative distribuzioni. Per esplorare `schema.gov.it` conviene di norma partire da ontologie, vocabolari, classi, proprietà e query SPARQL; i tool dataset sono più indicati per cataloghi esterni o per casi DCAT-AP_IT specifici.
+
 ### 6. Intelligence (Avanzato)
 *   `search_concepts`: **Ricerca fuzzy**. Trova concetti (es. "Scuola") senza conoscere l'URI esatto.
 *   `inspect_concept`: **Deep Dive**. Ottiene in un colpo solo definizione, gerarchia, usage stats e vicini di un concetto.
@@ -239,7 +241,7 @@ Una volta configurato, puoi chiedere all'agente cose come:
 *   **Compressione Token**: Le liste lunghe (> 5 item) vengono restituite in formato tabellare compatto per risparmiare token.
 *   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection.
 *   **Ontologia Locale**: I tool del gruppo 9 (`inspect_local_ontology`, `query_local_ontology`, `compare_local_with_remote`) usano [oxigraph](https://github.com/oxigraph/oxigraph) (WASM) per caricare file RDF/OWL locali in memoria ed eseguire SPARQL. I file vengono cachati dopo il primo caricamento; le query successive sullo stesso file non rileggono il disco. Formati supportati: `.ttl`, `.owl`, `.rdf`, `.nt`, `.jsonld`.
-*   **Logging**: Tutte le chiamate vengono loggate in `logs/usage_log.jsonl` per analisi e miglioramento continuo.
+*   **Logging**: Tutte le chiamate vengono loggate in `logs/usage_log.jsonl` per analisi e miglioramento continuo. Ogni entry include argomenti, riepilogo, `source_data_metrics` e `ai_data_metrics`: metriche quantitative dei dati ricevuti e del payload finale passato al modello, ad esempio numero di caratteri e, quando rilevabile, righe, colonne o numero di elementi.
 *   **Trasporto**: Il server supporta sia `stdio` (default, per uso locale) che HTTP/SSE (via `MCP_TRANSPORT=sse`, per uso remoto/Docker).
 
 ## Licenza

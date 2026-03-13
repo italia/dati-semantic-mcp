@@ -53,6 +53,8 @@ Single-file implementation (`src/index.ts`) using:
 - `explore_dataset` - Get dataset details and distributions
 - `preview_distribution` - Download and preview first rows of CSV/JSON data
 
+Note: keep these tools available, but do not treat them as the default entry point for `schema.gov.it`. In this catalog, many DCAT-AP_IT datasets are semantic assets such as ontologies, controlled vocabularies, and their distributions. For `schema.gov.it`, prefer ontology, vocabulary, class/property, and SPARQL tools first; dataset tools are more useful for external catalogs or specific DCAT-AP_IT inspection tasks.
+
 **Intelligent Tools:**
 - `search_concepts` - Fuzzy keyword search (use when URI is unknown)
 - `inspect_concept` - Deep profiling (definition, hierarchy, usage, relations)

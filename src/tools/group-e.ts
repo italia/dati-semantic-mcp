@@ -15,6 +15,8 @@ server.registerTool(
     title: "List Datasets",
     description: `List available Datasets (dcatapit:Dataset) in the catalog.
 
+Use this when you explicitly need DCAT-AP_IT dataset records. On schema.gov.it, these are often semantic assets such as ontologies, controlled vocabularies, and related distributions rather than classic tabular datasets, so ontology/vocabulary/SPARQL tools are usually a better starting point.
+
 **Args:**
 - limit: Maximum datasets per page (default: 20)
 - offset: Number of datasets to skip (default: 0)
@@ -75,6 +77,10 @@ server.registerTool(
           },
         },
         rowCount: count,
+        sourceData: {
+          dataResult,
+          countResult,
+        },
       };
     });
   }
@@ -85,6 +91,8 @@ server.registerTool(
   {
     title: "Explore Dataset",
     description: `Get details of a specific Dataset including metadata and distributions.
+
+Use this for targeted DCAT-AP_IT inspection. On schema.gov.it, many datasets describe semantic assets, so this tool is usually secondary to ontology, vocabulary, class/property, and SPARQL exploration.
 
 **Args:**
 - datasetUri: URI of the dataset to explore
@@ -138,6 +146,10 @@ server.registerTool(
           metadata: compressSparqlResult(details),
           distributions: compressSparqlResult(distributions),
         },
+        sourceData: {
+          metadata: details,
+          distributions,
+        },
         rowCount: (details.results?.bindings?.length ?? 0) +
           (distributions.results?.bindings?.length ?? 0),
       };
@@ -150,6 +162,8 @@ server.registerTool(
   {
     title: "Preview Distribution",
     description: `Download and preview the first rows of a distribution file.
+
+Most useful after you already identified a concrete distribution URL. On schema.gov.it, distributions often belong to semantic assets rather than classic tabular datasets.
 
 **Args:**
 - url: Download URL of the distribution (CSV or JSON)
@@ -207,6 +221,11 @@ server.registerTool(
         return {
           success: true,
           data: `Preview of ${url}:\n\n${preview}`,
+          sourceData: {
+            url,
+            contentType,
+            bodyPreview: text.slice(0, 4000),
+          },
         };
       } finally {
         clearTimeout(timeoutId);
