@@ -10,7 +10,7 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 ## Strumenti disponibili
 
-Il server espone **42 strumenti** organizzati in 13 categorie:
+Il server espone **43 strumenti** organizzati in 13 categorie:
 
 ### 1. Operazioni Base
 *   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint. Utile per esplorazione ad-hoc.
@@ -80,7 +80,8 @@ Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il
 
 Integrazione con [api.openknowledgegraphs.com](https://api.openknowledgegraphs.com) — catalogo di oltre 1.800 ontologie, vocabolari, tassonomie e strumenti semantici con metadati da Wikidata. Tutti i dati sono CC0, nessuna autenticazione richiesta.
 
-*   `search_okg_resources`: Cerca ontologie, vocabolari e tassonomie nel catalogo OKG per parola chiave e/o categoria tematica (Government & Public Sector, Geospatial, Life Sciences & Healthcare, ecc.).
+*   `list_okg_categories`: Recupera a runtime le categorie tematiche disponibili nel catalogo OKG (le categorie sono scaricate dinamicamente da `api.openknowledgegraphs.com` e messe in cache).
+*   `search_okg_resources`: Cerca ontologie, vocabolari e tassonomie nel catalogo OKG per parola chiave e/o categoria tematica.
 *   `find_okg_alignments`: Dato un URI di schema.gov.it, trova le risorse OKG correlate: prima cerca allineamenti Wikidata già presenti nel catalogo (owl:sameAs, skos:exactMatch), poi usa il Wikidata ID come ponte verso OKG per identificare corrispondenze internazionali confermate.
 *   `find_semantic_software`: Cerca strumenti software semantici nel catalogo OKG (editor di ontologie, motori SPARQL, convertitori RDF, reasoner, ecc.).
 *   `compare_coverage_with_okg`: Gap analysis per dominio: confronta le risorse di schema.gov.it con il catalogo OKG internazionale, classificando le risorse come "coperte" (già collegate via Wikidata) o "gap" (non ancora presenti in schema.gov.it).
@@ -263,7 +264,7 @@ Una volta configurato, puoi chiedere all'agente cose come:
 *   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection.
 *   **Ontologia Locale**: I tool del gruppo 10 (`inspect_local_ontology`, `query_local_ontology`, `compare_local_with_remote`) usano [oxigraph](https://github.com/oxigraph/oxigraph) (WASM) per caricare file RDF/OWL locali in memoria ed eseguire SPARQL. I file vengono cachati dopo il primo caricamento; le query successive sullo stesso file non rileggono il disco. Formati supportati: `.ttl`, `.owl`, `.rdf`, `.nt`, `.jsonld`.
 *   **Workflow Upload HTTP**: Il tool del gruppo 11 (`query_uploaded_store`) permette di interrogare via SPARQL uno store temporaneo creato via `POST /upload`, con scadenza automatica dopo un'ora.
-*   **Open Knowledge Graphs (OKG)**: I tool del gruppo 13 chiamano `api.openknowledgegraphs.com` (REST JSON, CC0, nessuna autenticazione, timeout 10s). Le categorie tematiche disponibili sono fisse nel catalogo OKG (non esiste un endpoint `/categories`): se OKG ne aggiunge di nuove, aggiornare `OKG_CATEGORIES` in `src/constants.ts`. Il tool `compare_coverage_with_okg` combina una chiamata OKG con una query SPARQL su schema.gov.it usando i Wikidata ID come chiave di collegamento.
+*   **Open Knowledge Graphs (OKG)**: I tool del gruppo 13 chiamano `api.openknowledgegraphs.com` (REST JSON, CC0, nessuna autenticazione, timeout 10s). Le categorie tematiche vengono scaricate dinamicamente dalla root dell'API (`GET /`) al primo utilizzo e messe in cache in memoria per la durata della sessione; non è più necessario aggiornarle manualmente nel codice. Il tool `compare_coverage_with_okg` combina una chiamata OKG con una query SPARQL su schema.gov.it usando i Wikidata ID come chiave di collegamento.
 *   **Logging**: Tutte le chiamate vengono loggate in `logs/usage_log.jsonl` per analisi e miglioramento continuo. Ogni entry include argomenti, riepilogo, `source_data_metrics` e `ai_data_metrics`: metriche quantitative dei dati ricevuti e del payload finale passato al modello, ad esempio numero di caratteri e, quando rilevabile, righe, colonne o numero di elementi.
 *   **Trasporto**: Il server supporta sia `stdio` (default, per uso locale) che HTTP/SSE (via `MCP_TRANSPORT=sse`, per uso remoto/Docker).
 

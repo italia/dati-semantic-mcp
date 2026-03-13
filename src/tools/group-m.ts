@@ -2,7 +2,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { executeTool } from "../executor.js";
 import { sanitizeSparqlUri, executeSparql } from "../sparql.js";
-import { OKG_CATEGORIES } from "../constants.js";
 import type { ToolResult } from "../types.js";
 
 // =============================================================================
@@ -12,6 +11,33 @@ import type { ToolResult } from "../types.js";
 
 const OKG_BASE_URL = "https://api.openknowledgegraphs.com";
 const OKG_TIMEOUT_MS = 10000;
+
+// Runtime category cache — populated on first use
+let _okgCategoriesCache: string[] | null = null;
+
+async function fetchOkgCategories(): Promise<string[]> {
+  if (_okgCategoriesCache) return _okgCategoriesCache;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OKG_TIMEOUT_MS);
+  try {
+    const response = await fetch(OKG_BASE_URL, { signal: controller.signal });
+    if (response.ok) {
+      const json = await response.json() as Record<string, unknown>;
+      const cats = json["categories"];
+      if (Array.isArray(cats) && cats.length > 0) {
+        _okgCategoriesCache = cats.map(String);
+        return _okgCategoriesCache;
+      }
+    }
+  } catch {
+    // ignore — fall through to empty list
+  } finally {
+    clearTimeout(timer);
+  }
+  _okgCategoriesCache = [];
+  return _okgCategoriesCache;
+}
 
 interface OkgResource {
   title: string;
@@ -65,6 +91,36 @@ async function fetchOkg(
 export function registerGroupM(server: McpServer): void {
 
   server.registerTool(
+    "list_okg_categories",
+    {
+      title: "List OKG Thematic Categories",
+      description: `Fetch the available thematic categories from the Open Knowledge Graphs (OKG) catalog.
+
+**Returns:** List of category names that can be used as filters in search_okg_resources and compare_coverage_with_okg.
+
+**Use when:** You need to know which categories are available before filtering OKG searches.`,
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async () => {
+      return executeTool("list_okg_categories", {}, async () => {
+        const categories = await fetchOkgCategories();
+        return {
+          success: true,
+          data: { categories, source: "openknowledgegraphs.com (CC0)" },
+          rowCount: categories.length,
+          sourceData: { categories },
+        };
+      });
+    }
+  );
+
+  server.registerTool(
     "search_okg_resources",
     {
       title: "Search Open Knowledge Graphs Resources",
@@ -81,19 +137,16 @@ OKG indexes 1800+ semantic resources with metadata sourced from Wikidata. All da
 **Returns:**
 - List of resources with title, wikidataId, description, category, homepage, licenses, types
 
-**Available categories:**
-Government & Public Sector, Geospatial, Life Sciences & Healthcare, International Development,
-Finance & Business, Library & Cultural Heritage, Technology & Web, Environment & Agriculture,
-General / Cross-domain
+**Available categories:** fetched dynamically from api.openknowledgegraphs.com at runtime.
 
 **Use when:** Discovering international ontologies and vocabularies in a domain before aligning
 with schema.gov.it resources. Pair with find_okg_alignments or compare_coverage_with_okg.`,
       inputSchema: {
         query: z.string().describe("Search term"),
         category: z
-          .enum(OKG_CATEGORIES)
+          .string()
           .optional()
-          .describe("Optional thematic category filter"),
+          .describe("Optional thematic category filter (see OKG categories)"),
         type: z
           .enum(["Ontology", "ControlledVocabulary", "Taxonomy"])
           .optional()
@@ -358,16 +411,13 @@ or build semantic applications on top of schema.gov.it content.`,
 - gaps: OKG resources with no corresponding link in schema.gov.it
 - without_wikidata: OKG resources without a Wikidata ID (cannot be cross-referenced automatically)
 
-**Available categories:**
-Government & Public Sector, Geospatial, Life Sciences & Healthcare, International Development,
-Finance & Business, Library & Cultural Heritage, Technology & Web, Environment & Agriculture,
-General / Cross-domain
+**Available categories:** fetched dynamically from api.openknowledgegraphs.com at runtime.
 
 **Use when:** Assessing which international standards are missing in schema.gov.it for a specific
 domain, or prioritizing new ontology and vocabulary contributions.`,
       inputSchema: {
         category: z
-          .enum(OKG_CATEGORIES)
+          .string()
           .describe("OKG thematic category to analyze"),
         limit: z
           .number()
