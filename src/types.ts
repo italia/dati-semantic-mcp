@@ -38,6 +38,7 @@ export interface ToolSuccess<T = unknown> {
   success: true;
   data: T;
   rowCount?: number;
+  sourceData?: unknown;
 }
 
 /** Error tool result */

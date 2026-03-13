@@ -129,7 +129,7 @@ server.registerTool(
       const result = await executeSparql(query, safeEndpoint, injectPrefixes ?? false, 15000);
       const rowCount = result.results?.bindings?.length ?? 0;
       const compressed = compressSparqlResult(result);
-      return { success: true, data: compressed, rowCount };
+      return { success: true, data: compressed, rowCount, sourceData: result };
     });
   }
 );
@@ -219,6 +219,7 @@ server.registerTool(
       return {
         success: true,
         data: { concept: uri, alignments },
+        sourceData: result,
         rowCount: alignments.length,
       };
     });
@@ -265,7 +266,7 @@ server.registerTool(
       const result = await executeSparql(query, safeEndpoint, false, 15000);
       const rowCount = result.results?.bindings?.length ?? 0;
       const compressed = compressSparqlResult(result);
-      return { success: true, data: compressed, rowCount };
+      return { success: true, data: compressed, rowCount, sourceData: result };
     });
   }
 );

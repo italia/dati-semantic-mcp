@@ -15,13 +15,19 @@ const LOG_FILE = join(LOG_DIR, "usage_log.jsonl");
 export async function logUsage(
   toolName: string,
   args: Record<string, unknown>,
-  resultSummary: string
+  resultSummary: string,
+  options?: {
+    sourceData?: unknown;
+    aiData?: unknown;
+  }
 ): Promise<void> {
   const entry = {
     timestamp: new Date().toISOString(),
     tool: toolName,
     args,
     summary: resultSummary,
+    source_data_metrics: buildDataMetrics(options?.sourceData),
+    ai_data_metrics: buildDataMetrics(options?.aiData),
   };
   try {
     await appendFile(LOG_FILE, JSON.stringify(entry) + "\n");
@@ -51,6 +57,46 @@ export function truncateResult(text: string): { text: string; truncated: boolean
   return { text: truncated, truncated: true };
 }
 
+function buildDataMetrics(value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  try {
+    const json = JSON.stringify(value);
+    const metrics: Record<string, unknown> = {
+      chars: json.length,
+    };
+
+    if (Array.isArray(value)) {
+      metrics.kind = "array";
+      metrics.items = value.length;
+    } else if (value && typeof value === "object") {
+      metrics.kind = "object";
+      metrics.keys = Object.keys(value as Record<string, unknown>).length;
+
+      const sparqlLike = value as {
+        head?: { vars?: unknown[] };
+        results?: { bindings?: unknown[] };
+      };
+      if (Array.isArray(sparqlLike.head?.vars)) {
+        metrics.vars = sparqlLike.head.vars.length;
+      }
+      if (Array.isArray(sparqlLike.results?.bindings)) {
+        metrics.rows = sparqlLike.results.bindings.length;
+      }
+    } else {
+      metrics.kind = typeof value;
+    }
+
+    return metrics;
+  } catch (error: unknown) {
+    return {
+      _serialization_error: getErrorMessage(error),
+    };
+  }
+}
+
 /**
  * Central helper for executing tools with consistent error handling, logging, and truncation.
  * @param toolName - Name of the tool for logging
@@ -68,11 +114,13 @@ export async function executeTool<T>(
     console.error(`[Tool] ${toolName} completed: ${result.success ? 'SUCCESS' : 'FAILURE'}`);
 
     if (!result.success) {
-      await logUsage(toolName, args, `Error: ${result.error}`);
       let errorText = `Error: ${result.error}`;
       if (result.suggestion) {
         errorText += `\nSuggestion: ${result.suggestion}`;
       }
+      await logUsage(toolName, args, `Error: ${result.error}`, {
+        aiData: { error: result.error, suggestion: result.suggestion },
+      });
       return {
         content: [{ type: "text", text: errorText }],
         isError: true,
@@ -83,7 +131,22 @@ export async function executeTool<T>(
     const { text, truncated } = truncateResult(jsonText);
 
     const rowInfo = result.rowCount !== undefined ? `, ${result.rowCount} rows` : "";
-    await logUsage(toolName, args, `Success${rowInfo}${truncated ? " (truncated)" : ""}`);
+    const aiData = truncated
+      ? {
+          _truncated: true,
+          _message: `Result exceeded ${CHARACTER_LIMIT} characters and was truncated`,
+          chars_before_truncation: jsonText.length,
+          chars_sent_to_ai: text.length,
+        }
+      : {
+          chars_sent_to_ai: text.length,
+          payload: result.data,
+        };
+
+    await logUsage(toolName, args, `Success${rowInfo}${truncated ? " (truncated)" : ""}`, {
+      sourceData: result.sourceData,
+      aiData,
+    });
 
     if (truncated) {
       return {
@@ -104,7 +167,9 @@ export async function executeTool<T>(
   } catch (error: unknown) {
     const message = getErrorMessage(error);
     console.error(`[Tool] ${toolName} error:`, message);
-    await logUsage(toolName, args, `Error: ${message}`);
+    await logUsage(toolName, args, `Error: ${message}`, {
+      aiData: { error: message },
+    });
     return {
       content: [{ type: "text", text: `Error: ${message}` }],
       isError: true,
@@ -125,6 +190,6 @@ export async function executeSparqlTool(
     const result = await executeSparql(query);
     const rowCount = result.results?.bindings?.length ?? 0;
     const compressed = compressSparqlResult(result);
-    return { success: true, data: compressed, rowCount };
+    return { success: true, data: compressed, rowCount, sourceData: result };
   });
 }
