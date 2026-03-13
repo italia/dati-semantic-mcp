@@ -533,7 +533,7 @@
               <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">3</span>
             </h3>
             <div class="it-card-body">
-              <p class="it-card-text small">Dataset DCAT-AP_IT: esplora metadati, distribuzioni e anteprime CSV/JSON dalla chat.</p>
+              <p class="it-card-text small">Dataset DCAT-AP_IT: esplora metadati, distribuzioni e anteprime CSV/JSON dalla chat. Su <code>schema.gov.it</code> questi tool sono spesso secondari: conviene di norma partire da ontologie, vocabolari, classi, proprieta e query SPARQL.</p>
               <ul class="list-unstyled small mt-2">
                 <li><code>list_datasets</code></li>
                 <li><code>explore_dataset</code></li>
@@ -573,7 +573,7 @@
               <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">4</span>
             </h3>
             <div class="it-card-body">
-              <p class="it-card-text small">Analizza proprieta RDF, istanze di classi e collegamenti tra schemi e valori controllati.</p>
+              <p class="it-card-text small">Analizza proprieta RDF, istanze di classi e suggerimenti sui vocabolari controllati da usare come range semantico.</p>
               <ul class="list-unstyled small mt-2">
                 <li><code>list_properties</code></li>
                 <li><code>get_property_details</code></li>
@@ -593,7 +593,7 @@
               <span class="badge rounded-pill bg-primary ms-2" style="font-size:.65rem">4</span>
             </h3>
             <div class="it-card-body">
-              <p class="it-card-text small">Comuni, province, identificatori CLV e risoluzione di codici territoriali verso URI canonici.</p>
+              <p class="it-card-text small">Comuni, province, identificatori CLV e risoluzione di codici territoriali verso URI canonici del catalogo.</p>
               <ul class="list-unstyled small mt-2">
                 <li><code>list_municipalities</code></li>
                 <li><code>list_provinces</code></li>
@@ -1056,14 +1056,14 @@ node dist/index.js</pre>
         </div>
         <div class="col-12 col-md-6 col-lg-4">
           <div class="feature-card">
-            <h3 class="h5">Ontologie locali e upload</h3>
-            <p class="small">I file RDF o OWL possono essere letti da path locali, inviati inline oppure caricati via <code>POST /upload</code>. Gli store caricati restano disponibili per un'ora e sono interrogabili anche tramite <code>/sparql/{id}</code>.</p>
+            <h3 class="h5">Ontologia locale e upload</h3>
+            <p class="small">I tool locali usano Oxigraph per caricare file RDF/OWL in memoria con cache dopo il primo caricamento. In modalita HTTP puoi anche creare uno store temporaneo via <code>POST /upload</code> e interrogarlo con <code>query_uploaded_store</code>; la scadenza e automatica dopo un'ora.</p>
           </div>
         </div>
         <div class="col-12 col-md-6 col-lg-4">
           <div class="feature-card">
             <h3 class="h5">Logging e trasporto</h3>
-            <p class="small">Le chiamate finiscono in <code>logs/usage_log.jsonl</code>. Il server supporta <code>stdio</code> per uso locale e HTTP/SSE con <code>MCP_TRANSPORT=sse</code> per ambienti remoti o Docker.</p>
+            <p class="small">Le chiamate finiscono in <code>logs/usage_log.jsonl</code> con argomenti, riepilogo, <code>source_data_metrics</code> e <code>ai_data_metrics</code>: metriche quantitative dei dati ricevuti e del payload passato al modello. Il server supporta <code>stdio</code> per uso locale e HTTP/SSE con <code>MCP_TRANSPORT=sse</code> per ambienti remoti o Docker.</p>
           </div>
         </div>
       </div>
