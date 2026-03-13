@@ -11,6 +11,7 @@ import { registerGroupI } from "./tools/group-i.js";
 import { registerGroupJ } from "./tools/group-j.js";
 import { registerGroupK } from "./tools/group-k.js";
 import { registerGroupL } from "./tools/group-l.js";
+import { registerGroupM } from "./tools/group-m.js";
 
 /**
  * Create and configure a new MCP server instance with all tools registered.
@@ -35,6 +36,7 @@ export function createAndConfigureServer(): McpServer {
   registerGroupJ(server);
   registerGroupK(server);
   registerGroupL(server);
+  registerGroupM(server);
 
   return server;
 }

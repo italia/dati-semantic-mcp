@@ -25,6 +25,22 @@ PREFIX l0: <https://w3id.org/italia/onto/l0/>
 PREFIX sm: <https://w3id.org/italia/onto/SM/>
 `;
 
+// Open Knowledge Graphs (OKG) — https://api.openknowledgegraphs.com
+// Categories are static (no /categories endpoint exists); update here if OKG adds new ones.
+export const OKG_CATEGORIES = [
+  "Government & Public Sector",
+  "Geospatial",
+  "Life Sciences & Healthcare",
+  "International Development",
+  "Finance & Business",
+  "Library & Cultural Heritage",
+  "Technology & Web",
+  "Environment & Agriculture",
+  "General / Cross-domain",
+] as const;
+
+export type OkgCategory = typeof OKG_CATEGORIES[number];
+
 export const RECOMMENDED_EXTERNAL_ENDPOINTS: RecommendedExternalEndpoint[] = [
   {
     id: "lod-dati-gov-it",

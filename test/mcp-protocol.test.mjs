@@ -1,14 +1,16 @@
 /**
- * MCP protocol tests — offline only (no external SPARQL calls).
+ * MCP protocol tests.
  *
  * Tests covered:
  *  - MCP initialize handshake (session ID, server info)
- *  - tools/list: all 38 tools present, new Fase 1 tools included
+ *  - tools/list: all 42 tools present, new Fase 1 + OKG tools included
  *  - recommend_external_endpoints: static list, no network
  *  - inspect_local_ontology: inline Turtle content, local oxigraph
  *  - query_local_ontology: via upload_id (file uploaded first via HTTP)
  *  - query_uploaded_store: same upload_id, direct SPARQL
  *  - list_instances_of_class: invalid URI → sanitizeSparqlUri error path
+ *  - Group M (OKG): search_okg_resources, find_semantic_software (network),
+ *    find_okg_alignments error path (offline), compare_coverage_with_okg (network)
  */
 
 import test from "node:test";
@@ -245,11 +247,11 @@ test("MCP initialize returns valid session ID and server info", () => {
   assert.match(mcpSessionId, /^[0-9a-f-]{36}$/i, "session ID should be a UUID");
 });
 
-test("MCP tools/list returns all 38 tools with expected names", async () => {
+test("MCP tools/list returns all 42 tools with expected names", async () => {
   const event = await mcpRequest("tools/list");
   const tools = event.result?.tools ?? [];
 
-  assert.equal(tools.length, 38, `Expected 38 tools, got ${tools.length}`);
+  assert.equal(tools.length, 42, `Expected 42 tools, got ${tools.length}`);
 
   const names = new Set(tools.map((t) => t.name));
 
@@ -259,8 +261,8 @@ test("MCP tools/list returns all 38 tools with expected names", async () => {
   assert.ok(names.has("inspect_concept"),    "missing inspect_concept");
 
   // Fase 1 new tools
-  assert.ok(names.has("resolve_territorial_uri"),           "missing resolve_territorial_uri (Fase 1)");
-  assert.ok(names.has("list_instances_of_class"),           "missing list_instances_of_class (Fase 1)");
+  assert.ok(names.has("resolve_territorial_uri"),              "missing resolve_territorial_uri (Fase 1)");
+  assert.ok(names.has("list_instances_of_class"),              "missing list_instances_of_class (Fase 1)");
   assert.ok(names.has("find_recommended_scheme_for_property"), "missing find_recommended_scheme_for_property (Fase 1)");
 
   // Local ontology tools
@@ -268,11 +270,17 @@ test("MCP tools/list returns all 38 tools with expected names", async () => {
   assert.ok(names.has("query_local_ontology"),    "missing query_local_ontology");
   assert.ok(names.has("query_uploaded_store"),    "missing query_uploaded_store");
 
+  // Group M: OKG tools
+  assert.ok(names.has("search_okg_resources"),      "missing search_okg_resources (Group M)");
+  assert.ok(names.has("find_okg_alignments"),        "missing find_okg_alignments (Group M)");
+  assert.ok(names.has("find_semantic_software"),     "missing find_semantic_software (Group M)");
+  assert.ok(names.has("compare_coverage_with_okg"), "missing compare_coverage_with_okg (Group M)");
+
   // Verify search_concepts has new params in its schema
   const searchConcepts = tools.find((t) => t.name === "search_concepts");
-  assert.ok(searchConcepts?.inputSchema?.properties?.resource_type,  "search_concepts missing resource_type param");
-  assert.ok(searchConcepts?.inputSchema?.properties?.ontology_filter,"search_concepts missing ontology_filter param");
-  assert.ok(searchConcepts?.inputSchema?.properties?.prefer_core,    "search_concepts missing prefer_core param");
+  assert.ok(searchConcepts?.inputSchema?.properties?.resource_type,   "search_concepts missing resource_type param");
+  assert.ok(searchConcepts?.inputSchema?.properties?.ontology_filter, "search_concepts missing ontology_filter param");
+  assert.ok(searchConcepts?.inputSchema?.properties?.prefer_core,     "search_concepts missing prefer_core param");
 });
 
 test("recommend_external_endpoints returns curated list without network", async () => {
@@ -358,4 +366,75 @@ test("find_recommended_scheme_for_property with invalid URI returns error", asyn
   });
 
   assert.equal(isError, true, "expected isError=true for non-HTTPS URI");
+});
+
+// ---------------------------------------------------------------------------
+// Group M: Open Knowledge Graphs (OKG) integration
+// These tests call api.openknowledgegraphs.com (public, CC0, no auth).
+// ---------------------------------------------------------------------------
+
+test("search_okg_resources returns structured results from OKG", async () => {
+  const { parsed, isError } = await callTool("search_okg_resources", {
+    query: "government",
+    limit: 5,
+  });
+
+  assert.equal(isError, false, "should not be an error");
+  assert.ok(Array.isArray(parsed?.results), "expected results array");
+  assert.equal(parsed.source, "openknowledgegraphs.com (CC0)", "expected CC0 source tag");
+  assert.ok(typeof parsed.total === "number", "expected total to be a number");
+  assert.ok(parsed.returned <= 5, "expected at most 5 results");
+});
+
+test("search_okg_resources with category filter returns matching results", async () => {
+  const { parsed, isError } = await callTool("search_okg_resources", {
+    query: "public sector",
+    category: "Government & Public Sector",
+    limit: 3,
+  });
+
+  assert.equal(isError, false, "should not be an error");
+  assert.ok(Array.isArray(parsed?.results), "expected results array");
+  assert.equal(parsed.category, "Government & Public Sector", "expected category in response");
+});
+
+test("find_semantic_software returns software tools from OKG", async () => {
+  const { parsed, isError } = await callTool("find_semantic_software", {
+    query: "SPARQL",
+    limit: 5,
+  });
+
+  assert.equal(isError, false, "should not be an error");
+  assert.ok(Array.isArray(parsed?.tools), "expected tools array");
+  assert.equal(parsed.source, "openknowledgegraphs.com (CC0)", "expected CC0 source tag");
+});
+
+test("find_okg_alignments with invalid URI returns sanitization error", async () => {
+  const { isError, raw } = await callTool("find_okg_alignments", {
+    uri: "not-a-valid-uri",
+  });
+
+  assert.equal(isError, true, "expected isError=true for invalid URI");
+  const text = raw.content?.[0]?.text ?? "";
+  assert.ok(
+    text.includes("Invalid") || text.includes("invalid") || text.includes("Error"),
+    `expected an error message about the URI, got: ${text}`
+  );
+});
+
+test("compare_coverage_with_okg returns structured summary and lists", async () => {
+  const { parsed, isError } = await callTool("compare_coverage_with_okg", {
+    category: "Government & Public Sector",
+    limit: 10,
+  });
+
+  assert.equal(isError, false, "should not be an error");
+  assert.ok(parsed?.summary, "expected summary object");
+  assert.ok(typeof parsed.summary.total_okg === "number",       "expected total_okg to be a number");
+  assert.ok(typeof parsed.summary.covered === "number",         "expected covered to be a number");
+  assert.ok(typeof parsed.summary.gaps === "number",            "expected gaps to be a number");
+  assert.ok(typeof parsed.summary.coverage_percent === "number","expected coverage_percent to be a number");
+  assert.ok(Array.isArray(parsed.covered),          "expected covered array");
+  assert.ok(Array.isArray(parsed.gaps),             "expected gaps array");
+  assert.ok(Array.isArray(parsed.without_wikidata), "expected without_wikidata array");
 });
