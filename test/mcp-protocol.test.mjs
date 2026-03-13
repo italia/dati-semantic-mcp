@@ -3,7 +3,7 @@
  *
  * Tests covered:
  *  - MCP initialize handshake (session ID, server info)
- *  - tools/list: all 42 tools present, new Fase 1 + OKG tools included
+ *  - tools/list: all 43 tools present, new Fase 1 + OKG tools included
  *  - recommend_external_endpoints: static list, no network
  *  - inspect_local_ontology: inline Turtle content, local oxigraph
  *  - query_local_ontology: via upload_id (file uploaded first via HTTP)
@@ -247,11 +247,11 @@ test("MCP initialize returns valid session ID and server info", () => {
   assert.match(mcpSessionId, /^[0-9a-f-]{36}$/i, "session ID should be a UUID");
 });
 
-test("MCP tools/list returns all 42 tools with expected names", async () => {
+test("MCP tools/list returns all 43 tools with expected names", async () => {
   const event = await mcpRequest("tools/list");
   const tools = event.result?.tools ?? [];
 
-  assert.equal(tools.length, 42, `Expected 42 tools, got ${tools.length}`);
+  assert.equal(tools.length, 43, `Expected 43 tools, got ${tools.length}`);
 
   const names = new Set(tools.map((t) => t.name));
 
@@ -271,10 +271,11 @@ test("MCP tools/list returns all 42 tools with expected names", async () => {
   assert.ok(names.has("query_uploaded_store"),    "missing query_uploaded_store");
 
   // Group M: OKG tools
-  assert.ok(names.has("search_okg_resources"),      "missing search_okg_resources (Group M)");
+  assert.ok(names.has("list_okg_categories"),        "missing list_okg_categories (Group M)");
+  assert.ok(names.has("search_okg_resources"),       "missing search_okg_resources (Group M)");
   assert.ok(names.has("find_okg_alignments"),        "missing find_okg_alignments (Group M)");
   assert.ok(names.has("find_semantic_software"),     "missing find_semantic_software (Group M)");
-  assert.ok(names.has("compare_coverage_with_okg"), "missing compare_coverage_with_okg (Group M)");
+  assert.ok(names.has("compare_coverage_with_okg"),  "missing compare_coverage_with_okg (Group M)");
 
   // Verify search_concepts has new params in its schema
   const searchConcepts = tools.find((t) => t.name === "search_concepts");
@@ -372,6 +373,16 @@ test("find_recommended_scheme_for_property with invalid URI returns error", asyn
 // Group M: Open Knowledge Graphs (OKG) integration
 // These tests call api.openknowledgegraphs.com (public, CC0, no auth).
 // ---------------------------------------------------------------------------
+
+test("list_okg_categories returns a non-empty list of strings from OKG", async () => {
+  const { parsed, isError } = await callTool("list_okg_categories", {});
+
+  assert.equal(isError, false, "should not be an error");
+  assert.ok(Array.isArray(parsed?.categories), "expected categories array");
+  assert.ok(parsed.categories.length > 0, "expected at least one category");
+  assert.ok(parsed.categories.every((c) => typeof c === "string"), "all categories should be strings");
+  assert.equal(parsed.source, "openknowledgegraphs.com (CC0)", "expected CC0 source tag");
+});
 
 test("search_okg_resources returns structured results from OKG", async () => {
   const { parsed, isError } = await callTool("search_okg_resources", {
