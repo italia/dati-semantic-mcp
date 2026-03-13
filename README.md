@@ -10,7 +10,7 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 ## Strumenti disponibili
 
-Il server espone **34 strumenti** organizzati in 11 categorie:
+Il server espone **38 strumenti** organizzati in 12 categorie:
 
 ### 1. Operazioni Base
 *   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint. Utile per esplorazione ad-hoc.
@@ -25,8 +25,6 @@ Il server espone **34 strumenti** organizzati in 11 categorie:
 ### 3. Modello Dati (Ontologie)
 *   `list_ontologies`: Elenca le ontologie disponibili (es. Città, Servizi Pubblici).
 *   `explore_ontology`: Mostra Classi e Proprietà definite in una specifica ontologia.
-*   `list_properties`: Elenca ObjectProperty e DatatypeProperty con dominio e range.
-*   `get_property_details`: Ottiene dettagli completi di una proprietà (dominio, range, inverse, functional).
 
 ### 4. Vocabolari Controllati (Reference Data)
 *   `list_vocabularies`: Elenca i vocabolari controllati disponibili (ConceptScheme) con conteggio istanze.
@@ -47,24 +45,34 @@ Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il
 *   `suggest_improvements`: Euristiche per trovare anomalie strutturali nell'ontologia (classi orfane, cicli).
 *   `describe_resource`: **CBD**. Ottiene tutte le triple di una risorsa (Concise Bounded Description).
 
-### 7. Dati Geografici (Italia)
+### 7. Proprieta e Relazioni
+*   `list_properties`: Elenca ObjectProperty e DatatypeProperty con dominio e range.
+*   `get_property_details`: Ottiene dettagli completi di una proprietà (dominio, range, inverse, functional).
+*   `list_instances_of_class`: Elenca le istanze di una classe presente nel catalogo.
+*   `find_recommended_scheme_for_property`: Suggerisce il ConceptScheme più adatto per i valori controllati di una proprietà.
+
+### 8. Dati Geografici (Italia)
 *   `list_municipalities`: Elenca i comuni italiani con codici ISTAT e Belfiore, con filtro per nome.
 *   `list_provinces`: Elenca le province italiane con sigla automobilistica e codice metro.
 *   `list_identifiers`: Esplora gli identificatori CLV (Codice Catastale, Sigla Automobilistica, ecc.).
+*   `resolve_territorial_uri`: Risolve codici territoriali italiani verso URI canonici del catalogo.
 
-### 8. Endpoint SPARQL Esterni (linked data)
+### 9. Endpoint SPARQL Esterni (linked data)
 *   `recommend_external_endpoints`: Restituisce una short list curata di endpoint SPARQL pubblici utili da usare insieme a `schema.gov.it`.
 *   `list_linked_endpoints`: Scopre gli endpoint SPARQL collegati al catalogo via `dcat:DataService`.
 *   `query_external_endpoint`: Esegue una query SPARQL su qualsiasi endpoint HTTPS pubblico, con compressione del risultato per ridurre i token.
 *   `find_external_alignments`: Trova i mapping verso risorse esterne (Eurostat, DBpedia, ecc.).
 *   `explore_external_endpoint`: Esplora la struttura di un endpoint esterno (classi e conteggi).
 
-### 9. Ontologia Locale
+### 10. Ontologia Locale
 *   `inspect_local_ontology`: Carica e riassume un file RDF/OWL locale (TTL, OWL, NT, JSON-LD) — classi, proprietà, namespace, conteggio triple. Il file viene cachato in memoria dopo il primo caricamento.
 *   `query_local_ontology`: Esegue una query SPARQL SELECT su un file locale. Prefissi standard iniettati automaticamente. Risultati compressi come gli altri tool.
 *   `compare_local_with_remote`: Confronta le classi/proprietà definite localmente con quelle presenti in schema.gov.it — utile per scoprire cosa riusare o allineare.
 
-### 10. Meta-Ottimizzazione
+### 11. Workflow Upload HTTP
+*   `query_uploaded_store`: Esegue query SPARQL SELECT su uno store temporaneo creato via `POST /upload`, utile in modalità HTTP.
+
+### 12. Meta-Ottimizzazione
 *   `suggest_new_tools`: Analizza i log delle query RAW e suggerisce nuovi tool specializzati in base all'utilizzo reale.
 *   `analyze_usage`: Analizza i log interni per identificare pattern, errori e query frequenti.
 
@@ -240,7 +248,8 @@ Una volta configurato, puoi chiedere all'agente cose come:
 *   **Prefixes Automatici**: Non serve definire `rdf:`, `owl:`, `skos:`, ecc. nelle query interne. Il server li aggiunge automaticamente. Per gli endpoint esterni i prefissi non vengono iniettati di default.
 *   **Compressione Token**: Le liste lunghe (> 5 item) vengono restituite in formato tabellare compatto per risparmiare token.
 *   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection.
-*   **Ontologia Locale**: I tool del gruppo 9 (`inspect_local_ontology`, `query_local_ontology`, `compare_local_with_remote`) usano [oxigraph](https://github.com/oxigraph/oxigraph) (WASM) per caricare file RDF/OWL locali in memoria ed eseguire SPARQL. I file vengono cachati dopo il primo caricamento; le query successive sullo stesso file non rileggono il disco. Formati supportati: `.ttl`, `.owl`, `.rdf`, `.nt`, `.jsonld`.
+*   **Ontologia Locale**: I tool del gruppo 10 (`inspect_local_ontology`, `query_local_ontology`, `compare_local_with_remote`) usano [oxigraph](https://github.com/oxigraph/oxigraph) (WASM) per caricare file RDF/OWL locali in memoria ed eseguire SPARQL. I file vengono cachati dopo il primo caricamento; le query successive sullo stesso file non rileggono il disco. Formati supportati: `.ttl`, `.owl`, `.rdf`, `.nt`, `.jsonld`.
+*   **Workflow Upload HTTP**: Il tool del gruppo 11 (`query_uploaded_store`) permette di interrogare via SPARQL uno store temporaneo creato via `POST /upload`, con scadenza automatica dopo un'ora.
 *   **Logging**: Tutte le chiamate vengono loggate in `logs/usage_log.jsonl` per analisi e miglioramento continuo. Ogni entry include argomenti, riepilogo, `source_data_metrics` e `ai_data_metrics`: metriche quantitative dei dati ricevuti e del payload finale passato al modello, ad esempio numero di caratteri e, quando rilevabile, righe, colonne o numero di elementi.
 *   **Trasporto**: Il server supporta sia `stdio` (default, per uso locale) che HTTP/SSE (via `MCP_TRANSPORT=sse`, per uso remoto/Docker).
 
