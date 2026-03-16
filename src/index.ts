@@ -16,6 +16,7 @@ import {
   readRawBodyWithLimit,
   evictExpiredUploads,
 } from "./upload.js";
+import { GRAPHOL_FORMAT, loadOntologyContent } from "./local-ontology.js";
 
 const LOG_DIR = join(process.cwd(), "logs");
 
@@ -87,29 +88,34 @@ async function main() {
           'application/n-triples': 'application/n-triples',
           'application/ld+json': 'application/ld+json',
           'text/n3': 'text/n3', 'text/rdf+n3': 'text/n3',
+          'application/graphol+xml': GRAPHOL_FORMAT,
+          'text/graphol+xml': GRAPHOL_FORMAT,
         };
         const extFormatMap: Record<string, string> = {
           ttl: 'text/turtle', n3: 'text/n3', nt: 'application/n-triples',
           jsonld: 'application/ld+json', json: 'application/ld+json',
           xml: 'application/rdf+xml', rdf: 'application/rdf+xml', owl: 'application/rdf+xml',
+          graphol: GRAPHOL_FORMAT,
         };
         const format =
           ctFormatMap[ctNorm] ??
           (formatParam ? extFormatMap[formatParam.toLowerCase()] : undefined) ??
           'text/turtle';
         const store = new OxStore();
+        let loadedFormat = format;
         try {
-          store.load(bodyBuf.toString('utf-8'), { format, lenient: true });
+          const loaded = loadOntologyContent(store, bodyBuf.toString('utf-8'), format);
+          loadedFormat = loaded.format;
         } catch (e) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: `Failed to parse RDF: ${String(e)}` }));
           return;
         }
         const id = randomUUID();
-        uploadedStores.set(id, { store, format, tripleCount: store.size, created: Date.now() });
-        console.error(`[Upload] Stored ontology id=${id} triples=${store.size} format=${format}`);
+        uploadedStores.set(id, { store, format: loadedFormat, tripleCount: store.size, created: Date.now() });
+        console.error(`[Upload] Stored ontology id=${id} triples=${store.size} format=${loadedFormat}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ id, tripleCount: store.size, format, endpoint: `/sparql/${id}` }));
+        res.end(JSON.stringify({ id, tripleCount: store.size, format: loadedFormat, endpoint: `/sparql/${id}` }));
         return;
       }
 

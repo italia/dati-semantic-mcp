@@ -21,7 +21,7 @@ server.registerTool(
 2. Response: \`{"id": "<uuid>", "tripleCount": N, "endpoint": "/sparql/<uuid>"}\`
 3. Use the \`id\` here to run SPARQL queries, OR pass it as \`upload_id\` to \`inspect_local_ontology\`, \`query_local_ontology\`, \`compare_local_with_remote\`
 
-**Supported Content-Types for upload:** text/turtle, application/rdf+xml, application/n-triples, application/ld+json
+**Supported Content-Types for upload:** text/turtle, application/rdf+xml, application/n-triples, application/ld+json, application/graphol+xml
 
 **Notes:**
 - Uploaded stores are kept for 1 hour then evicted

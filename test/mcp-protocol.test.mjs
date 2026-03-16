@@ -17,7 +17,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { TEST_TTL } from "./fixtures.mjs";
+import { TEST_GRAPHOL, TEST_TTL } from "./fixtures.mjs";
 
 const HOST = "127.0.0.1";
 const PORT = 4400 + Math.floor(Math.random() * 500);
@@ -318,6 +318,21 @@ test("inspect_local_ontology with inline Turtle content summarizes test.ttl", as
   );
 });
 
+test("inspect_local_ontology with inline Graphol content extracts ontology entities", async () => {
+  const { parsed, isError } = await callTool("inspect_local_ontology", {
+    content: TEST_GRAPHOL,
+    format: "application/graphol+xml",
+  });
+
+  assert.equal(isError, false, "should not be an error");
+  assert.ok(parsed.tripleCount >= 5, `expected tripleCount >= 5, got ${parsed.tripleCount}`);
+  assert.equal(parsed.format, "text/turtle");
+
+  const serialized = JSON.stringify(parsed.classes);
+  assert.ok(serialized.includes("Person"), "expected Person class in output");
+  assert.ok(serialized.includes("Agent"), "expected Agent class in output");
+});
+
 test("query_local_ontology via upload_id returns classes from test.ttl", async () => {
   const { parsed, isError } = await callTool("query_local_ontology", {
     upload_id: uploadId,
@@ -333,6 +348,26 @@ test("query_local_ontology via upload_id returns classes from test.ttl", async (
     resultStr.includes("Organizzazione") && resultStr.includes("Persona"),
     "expected both classes in query result"
   );
+});
+
+test("query_local_ontology with inline Graphol content returns subclass axiom", async () => {
+  const uploadRes = await fetch(`${BASE_URL}/upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/graphol+xml" },
+    body: TEST_GRAPHOL,
+  });
+  assert.equal(uploadRes.status, 200);
+  const uploaded = await uploadRes.json();
+
+  const queried = await callTool("query_local_ontology", {
+    upload_id: uploaded.id,
+    query: "SELECT ?s ?o WHERE { ?s rdfs:subClassOf ?o }",
+    inject_prefixes: true,
+  });
+  assert.equal(queried.isError, false, "graphol query should not be an error");
+  const resultStr = JSON.stringify(queried.parsed);
+  assert.ok(resultStr.includes("Person"), "expected Person in subclass result");
+  assert.ok(resultStr.includes("Agent"), "expected Agent in subclass result");
 });
 
 test("query_uploaded_store via upload_id returns DatatypeProperties", async () => {

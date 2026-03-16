@@ -14,14 +14,14 @@ server.registerTool(
   "inspect_local_ontology",
   {
     title: "Inspect Local Ontology",
-    description: `Load and summarize a local RDF/OWL ontology file (TTL, OWL/RDF-XML, NT, JSON-LD).
+    description: `Load and summarize a local RDF/OWL ontology file (TTL, OWL/RDF-XML, NT, JSON-LD, Graphol XML).
 
 **Input (provide exactly one):**
 - file_path: Absolute path on the server filesystem — use when running locally or via Docker with a mounted volume
 - content + format: Raw RDF text — use when the server is remote (HTTP mode); the client reads the file and sends its content inline (max 1 MB)
 - upload_id: UUID returned by POST /upload — use when the file was already uploaded via HTTP
 
-**format values:** "text/turtle" (default), "application/rdf+xml", "application/n-triples", "application/ld+json"
+**format values:** "text/turtle" (default), "application/rdf+xml", "application/n-triples", "application/ld+json", "application/graphol+xml"
 
 **Returns:**
 - File info: format, triple count, source
@@ -33,7 +33,7 @@ server.registerTool(
     inputSchema: {
       file_path: z.string().optional().describe("Absolute path to the ontology file on the server filesystem"),
       content: z.string().optional().describe("Raw RDF content as string (for remote server use; max 1 MB)"),
-      format: z.string().optional().describe('RDF format of content: "text/turtle" (default), "application/rdf+xml", "application/n-triples", "application/ld+json"'),
+      format: z.string().optional().describe('RDF format of content: "text/turtle" (default), "application/rdf+xml", "application/n-triples", "application/ld+json", "application/graphol+xml"'),
       upload_id: z.string().optional().describe("Upload UUID returned by POST /upload (HTTP mode)"),
     },
     annotations: {
@@ -106,7 +106,7 @@ server.registerTool(
 **Returns:**
 - Compressed SPARQL results (tabular for >5 rows, compact for ≤5 rows)
 
-**Supported formats:** .ttl (Turtle), .owl / .rdf (RDF/XML), .nt (N-Triples), .jsonld (JSON-LD)
+**Supported formats:** .ttl (Turtle), .owl / .rdf (RDF/XML), .nt (N-Triples), .jsonld (JSON-LD), .graphol (Graphol XML)
 **Efficiency:** File is cached after first load; repeated queries on the same unchanged file skip re-parsing.
 **Note:** Standard prefixes (rdf, rdfs, owl, skos…) are injected automatically unless inject_prefixes=false.`,
     inputSchema: {
