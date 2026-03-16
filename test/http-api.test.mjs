@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { TEST_TTL } from "./fixtures.mjs";
+import { TEST_GRAPHOL, TEST_TTL } from "./fixtures.mjs";
 
 const HOST = "127.0.0.1";
 const PORT = 3400 + Math.floor(Math.random() * 1000);
@@ -103,6 +103,28 @@ test("POST /upload rejects malformed RDF", async () => {
   assert.equal(badUpload.status, 400);
   const body = await badUpload.json();
   assert.match(body.error, /Failed to parse RDF/i);
+});
+
+test("POST /upload accepts Graphol XML and exposes it as a queryable store", async () => {
+  const uploadRes = await fetch(`${BASE_URL}/upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/graphol+xml" },
+    body: TEST_GRAPHOL,
+  });
+  assert.equal(uploadRes.status, 200);
+  const uploaded = await uploadRes.json();
+  assert.match(uploaded.id, /^[0-9a-f-]{36}$/i);
+  assert.equal(uploaded.format, "text/turtle");
+
+  const query = "SELECT ?c WHERE { ?c a <http://www.w3.org/2002/07/owl#Class> } ORDER BY ?c";
+  const queryRes = await fetch(`${BASE_URL}/sparql/${uploaded.id}?query=${encodeURIComponent(query)}`);
+  assert.equal(queryRes.status, 200);
+  const result = await queryRes.json();
+  const values = result.results.bindings.map((b) => b.c?.value);
+  assert.deepEqual(values, [
+    "http://example.org/onto#Agent",
+    "http://example.org/onto#Person",
+  ]);
 });
 
 test("POST /upload rejects payload > 1MB", async () => {
