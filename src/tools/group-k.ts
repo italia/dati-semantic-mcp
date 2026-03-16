@@ -23,9 +23,9 @@ server.registerTool(
 
 **Important for remote MCP servers:**
 - Do not assume file_path points to the user's laptop or local workstation.
-- If the MCP server runs on another machine/container and cannot access the file directly, upload it first with POST /upload, then call this tool with upload_id.
+- If the MCP server runs on another machine/container and cannot access the file directly, call \`get_upload_instructions\` first, execute the returned curl command via Bash tool (do NOT read the file), then use the upload_id here.
 - Prefer upload_id over trying many path variants when access to the original file is uncertain.
-- Do not paste large ontology files into the chat or spend model tokens to relay them. Send the bytes with a local client-side tool such as curl, nc, or an equivalent upload helper.
+- Never read the file content and relay it through the conversation — this wastes tokens. Use get_upload_instructions + Bash tool instead.
 
 **format values:** "text/turtle" (default), "application/rdf+xml", "application/n-triples", "application/ld+json", "application/graphol+xml"
 
@@ -111,8 +111,8 @@ server.registerTool(
 
 **Important for remote MCP servers:**
 - If a direct file path is not accessible from the server, do not keep retrying with alternative local paths.
-- Upload the file with POST /upload and call this tool with upload_id.
-- Do not use the model conversation as a transport layer for the ontology body. Use a local upload tool to send the file directly to the server.
+- Call \`get_upload_instructions\` with the file path, execute the returned curl command via Bash tool (do NOT read the file first), then use the upload_id here.
+- Never relay the file content through the conversation — this wastes tokens. curl sends bytes directly from disk to server.
 
 **Returns:**
 - Compressed SPARQL results (tabular for >5 rows, compact for ≤5 rows)
@@ -158,8 +158,8 @@ server.registerTool(
 
 **Important for remote MCP servers:**
 - file_path is not a transport mechanism. It works only for files visible to the server process.
-- If the ontology sits on the client machine, upload it first and pass upload_id.
-- Do not waste tokens by copying the ontology text into the conversation when a local upload tool can send the file directly.
+- If the ontology sits on the client machine, call \`get_upload_instructions\`, execute the curl command via Bash tool (without reading the file), then use the upload_id here.
+- Never copy ontology text into the conversation — use get_upload_instructions + Bash tool to send bytes directly.
 
 **Returns:**
 - matched: URIs found in both local file and schema.gov.it (with Italian label if available)
