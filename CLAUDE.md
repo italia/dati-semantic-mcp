@@ -74,9 +74,11 @@ Note: keep these tools available, but do not treat them as the default entry poi
 - `explore_external_endpoint` - Explore classes/counts of an external SPARQL endpoint
 
 **Local Ontology (Group K):**
-- `inspect_local_ontology` - Load and summarize a local TTL/OWL/NT/JSON-LD file (classes, properties, namespaces, triple count)
-- `query_local_ontology` - Execute SPARQL SELECT against a local ontology file
-- `compare_local_with_remote` - Compare local classes/properties against schema.gov.it to find matches and gaps
+- `inspect_local_ontology` - Load and summarize an ontology from a server-local path, inline RDF content, or `upload_id`
+- `query_local_ontology` - Execute SPARQL SELECT against an ontology reachable by the server or previously uploaded via HTTP
+- `compare_local_with_remote` - Compare classes/properties from a server-local or uploaded ontology against schema.gov.it
+
+Remote HTTP note: `file_path` always refers to the MCP server filesystem. If the file lives on the client machine, use `POST /upload` and pass the returned `upload_id` instead of retrying local path variants.
 
 **Meta:**
 - `suggest_new_tools` - Analyze usage logs to suggest new specialized tools

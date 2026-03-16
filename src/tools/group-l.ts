@@ -17,16 +17,24 @@ server.registerTool(
     description: `Execute a SPARQL SELECT query against a temporary ontology store created via HTTP upload.
 
 **Workflow (HTTP mode only):**
-1. Upload a local RDF file: \`POST /upload\` with raw RDF body and correct Content-Type (max 1 MB)
+1. Upload the RDF file to the MCP server with \`POST /upload\` and the raw RDF body (max 1 MB)
 2. Response: \`{"id": "<uuid>", "tripleCount": N, "endpoint": "/sparql/<uuid>"}\`
 3. Use the \`id\` here to run SPARQL queries, OR pass it as \`upload_id\` to \`inspect_local_ontology\`, \`query_local_ontology\`, \`compare_local_with_remote\`
+
+**When to use this workflow:**
+- The MCP server is remote, containerized, or otherwise cannot read the user's local filesystem.
+- A previous \`file_path\` attempt failed because the path only exists on the client machine.
+- You need a predictable remote-safe path instead of guessing how to forward local files.
+- You want the client to send the raw file bytes directly, instead of consuming model tokens by pasting the ontology into the prompt.
 
 **Supported Content-Types for upload:** text/turtle, application/rdf+xml, application/n-triples, application/ld+json, application/graphol+xml
 
 **Notes:**
 - Uploaded stores are kept for 1 hour then evicted
 - Standard prefixes (rdf/rdfs/owl/skos/dct/xsd/dcat/foaf/clv/cpv/l0/sm) are auto-injected
-- The same store is also queryable directly via \`GET /sparql/<id>?query=...\``,
+- The same store is also queryable directly via \`GET /sparql/<id>?query=...\`
+- For remote files, this is usually the right fallback instead of retrying \`file_path\` with many local path variants
+- Prefer a local upload command or helper over copying RDF text through the model conversation`,
     inputSchema: {
       id: z.string().describe("Upload UUID returned by POST /upload"),
       query: z.string().describe("SPARQL SELECT query to execute against the uploaded store"),
