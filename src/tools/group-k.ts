@@ -14,12 +14,18 @@ server.registerTool(
   "inspect_local_ontology",
   {
     title: "Inspect Local Ontology",
-    description: `Load and summarize a local RDF/OWL ontology file (TTL, OWL/RDF-XML, NT, JSON-LD, Graphol XML).
+    description: `Load and summarize an RDF/OWL ontology from the server filesystem, inline content, or an uploaded HTTP store (TTL, OWL/RDF-XML, NT, JSON-LD, Graphol XML).
 
 **Input (provide exactly one):**
-- file_path: Absolute path on the server filesystem — use when running locally or via Docker with a mounted volume
-- content + format: Raw RDF text — use when the server is remote (HTTP mode); the client reads the file and sends its content inline (max 1 MB)
-- upload_id: UUID returned by POST /upload — use when the file was already uploaded via HTTP
+- file_path: Absolute path on the MCP server filesystem. Use this only when the server process can really read that path (local stdio, same machine, or Docker with that directory mounted).
+- content + format: Raw RDF text sent inline. Works in remote HTTP mode too, but only for small payloads (max 1 MB).
+- upload_id: UUID returned by POST /upload. This is the preferred remote workflow when the ontology file is on the client machine instead of the server.
+
+**Important for remote MCP servers:**
+- Do not assume file_path points to the user's laptop or local workstation.
+- If the MCP server runs on another machine/container and cannot access the file directly, upload it first with POST /upload, then call this tool with upload_id.
+- Prefer upload_id over trying many path variants when access to the original file is uncertain.
+- Do not paste large ontology files into the chat or spend model tokens to relay them. Send the bytes with a local client-side tool such as curl, nc, or an equivalent upload helper.
 
 **format values:** "text/turtle" (default), "application/rdf+xml", "application/n-triples", "application/ld+json", "application/graphol+xml"
 
@@ -95,13 +101,18 @@ server.registerTool(
   "query_local_ontology",
   {
     title: "Query Local Ontology",
-    description: `Execute a SPARQL SELECT query against a local RDF/OWL ontology file.
+    description: `Execute a SPARQL SELECT query against an ontology available on the server filesystem or through HTTP upload.
 
 **Args (provide exactly one of file_path or upload_id):**
-- file_path: Absolute path to the ontology file (local/Docker)
-- upload_id: UUID returned by POST /upload (HTTP mode)
+- file_path: Absolute path on the MCP server filesystem. Use only if the server can really read that path.
+- upload_id: UUID returned by POST /upload. Use this in HTTP/remote mode when the file is local to the client, not the server.
 - query: SPARQL SELECT query
 - inject_prefixes: Inject standard prefixes (rdf, rdfs, owl, skos, dct…) — default true
+
+**Important for remote MCP servers:**
+- If a direct file path is not accessible from the server, do not keep retrying with alternative local paths.
+- Upload the file with POST /upload and call this tool with upload_id.
+- Do not use the model conversation as a transport layer for the ontology body. Use a local upload tool to send the file directly to the server.
 
 **Returns:**
 - Compressed SPARQL results (tabular for >5 rows, compact for ≤5 rows)
@@ -137,13 +148,18 @@ server.registerTool(
   "compare_local_with_remote",
   {
     title: "Compare Local Ontology with schema.gov.it",
-    description: `Compare classes and/or properties defined in a local ontology file against schema.gov.it.
+    description: `Compare classes and/or properties defined in an ontology available on the server filesystem or through HTTP upload against schema.gov.it.
 
 **Args (provide exactly one of file_path or upload_id):**
-- file_path: Absolute path to the local ontology file (local/Docker)
-- upload_id: UUID returned by POST /upload (HTTP mode)
+- file_path: Absolute path on the MCP server filesystem. Use only if the server can really read that path.
+- upload_id: UUID returned by POST /upload. Use this in HTTP/remote mode when the ontology file is not present on the server.
 - type: What to compare — "classes" | "properties" | "all" (default: "classes")
 - limit: Max local items to check (default: 50)
+
+**Important for remote MCP servers:**
+- file_path is not a transport mechanism. It works only for files visible to the server process.
+- If the ontology sits on the client machine, upload it first and pass upload_id.
+- Do not waste tokens by copying the ontology text into the conversation when a local upload tool can send the file directly.
 
 **Returns:**
 - matched: URIs found in both local file and schema.gov.it (with Italian label if available)

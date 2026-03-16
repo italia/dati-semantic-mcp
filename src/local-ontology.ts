@@ -330,13 +330,13 @@ export async function resolveLocalStore(
     throw new Error("Provide exactly one of: file_path, content, or upload_id.");
   }
   if (provided === 0) {
-    throw new Error("Provide one of: file_path (local server), content (remote server), or upload_id (HTTP upload).");
+    throw new Error("Provide one of: file_path (server-local file), content (inline RDF for small payloads), or upload_id (recommended for remote HTTP servers).");
   }
 
   if (uploadId) {
     const entry = uploadedStores.get(uploadId);
     if (!entry) {
-      throw new Error(`Upload store '${uploadId}' not found or expired. Upload a file first via POST /upload (stores expire after 1 hour).`);
+      throw new Error(`Upload store '${uploadId}' not found or expired. Upload the file first via POST /upload (preferred when the file is on the client machine and the MCP server is remote). Stores expire after 1 hour.`);
     }
     return { store: entry.store, tripleCount: entry.tripleCount, format: entry.format, source: `upload:${uploadId}` };
   }
@@ -350,7 +350,7 @@ export async function resolveLocalStore(
   if (content!.length > MAX_INLINE_CONTENT_SIZE) {
     throw new Error(
       `Content length (${content!.length} chars) exceeds the ${MAX_INLINE_CONTENT_SIZE}-character limit. ` +
-      `Use file_path instead for large ontologies.`
+      `Use upload_id instead for large ontologies on remote servers, or file_path only when the server can read the file directly.`
     );
   }
   const fmt = format ?? "text/turtle";

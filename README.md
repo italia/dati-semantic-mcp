@@ -65,12 +65,12 @@ Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il
 *   `explore_external_endpoint`: Esplora la struttura di un endpoint esterno (classi e conteggi).
 
 ### 10. Ontologia Locale
-*   `inspect_local_ontology`: Carica e riassume un file RDF/OWL locale (TTL, OWL, NT, JSON-LD) — classi, proprietà, namespace, conteggio triple. Il file viene cachato in memoria dopo il primo caricamento.
-*   `query_local_ontology`: Esegue una query SPARQL SELECT su un file locale. Prefissi standard iniettati automaticamente. Risultati compressi come gli altri tool.
-*   `compare_local_with_remote`: Confronta le classi/proprietà definite localmente con quelle presenti in schema.gov.it — utile per scoprire cosa riusare o allineare.
+*   `inspect_local_ontology`: Carica e riassume un'ontologia RDF/OWL disponibile al server via `file_path`, contenuto inline o `upload_id`. Attenzione: `file_path` indica sempre un path leggibile dal server MCP, non dal laptop dell'utente.
+*   `query_local_ontology`: Esegue una query SPARQL SELECT su un'ontologia accessibile dal server o caricata prima via `POST /upload`. Prefissi standard iniettati automaticamente. Risultati compressi come gli altri tool.
+*   `compare_local_with_remote`: Confronta le classi/proprietà definite in un'ontologia accessibile dal server o via `upload_id` con quelle presenti in schema.gov.it — utile per scoprire cosa riusare o allineare.
 
 ### 11. Workflow Upload HTTP
-*   `query_uploaded_store`: Esegue query SPARQL SELECT su uno store temporaneo creato via `POST /upload`, utile in modalità HTTP.
+*   `query_uploaded_store`: Esegue query SPARQL SELECT su uno store temporaneo creato via `POST /upload`. In modalità HTTP/remota è spesso il flusso corretto quando il file sta sulla macchina client e non sul filesystem del server.
 
 ### 12. Meta-Ottimizzazione
 *   `suggest_new_tools`: Analizza i log delle query RAW e suggerisce nuovi tool specializzati in base all'utilizzo reale.
@@ -198,6 +198,8 @@ In `.vscode/mcp.json`:
 
 Adatta per ambienti condivisi, CI/CD o deployment remoto. Il server deve essere già in esecuzione (es. via Docker Compose).
 
+Importante: in questa modalità `file_path` si riferisce al filesystem del server/container. Se il file RDF sta sul computer del client, il flusso corretto è `POST /upload` e poi uso di `upload_id`.
+
 #### Claude Code
 
 ```bash
@@ -232,6 +234,41 @@ In `.vscode/mcp.json`:
 }
 ```
 
+#### Upload di un file locale verso un server remoto
+
+Quando il server gira altrove e non può leggere il file locale del client, evita di provare percorsi diversi. Carica il file una volta e riusa l'`id` restituito.
+
+Questo punto è importante anche per i costi e l'affidabilità: non usare la conversazione con il modello come canale di trasporto del file, e non incollare ontologie grandi nel prompt. Il file va inviato dal client con un tool locale che spedisca i byte direttamente al server, per esempio `curl`, `nc` o un helper equivalente del client MCP.
+
+Con `curl`:
+
+```bash
+curl -X POST \
+  -H "Content-Type: text/turtle" \
+  --data-binary @./mia-ontologia.ttl \
+  http://localhost:3000/upload
+```
+
+Risposta tipica:
+
+```json
+{"id":"9d7...","tripleCount":1234,"format":"text/turtle","endpoint":"/sparql/9d7..."}
+```
+
+Poi usa quell'`id` come `upload_id` con `inspect_local_ontology`, `query_local_ontology` o `compare_local_with_remote`, oppure interroga direttamente lo store:
+
+```bash
+curl --get \
+  --data-urlencode 'query=SELECT ?c WHERE { ?c a <http://www.w3.org/2002/07/owl#Class> } LIMIT 10' \
+  http://localhost:3000/sparql/9d7...
+```
+
+Con `nc`:
+
+```bash
+{ printf 'POST /upload HTTP/1.1\r\nHost: localhost:3000\r\nContent-Type: text/turtle\r\nContent-Length: %s\r\n\r\n' "$(wc -c < ./mia-ontologia.ttl)"; cat ./mia-ontologia.ttl; } | nc localhost 3000
+```
+
 ---
 
 ## Esempi di Utilizzo
@@ -246,9 +283,9 @@ Una volta configurato, puoi chiedere all'agente cose come:
 *   *"Trova i comuni della Lombardia e il loro codice Belfiore."* (Userà `list_municipalities`)
 *   *"Consigliami alcuni endpoint SPARQL esterni da interrogare dopo schema.gov.it."* (Userà `recommend_external_endpoints`)
 *   *"Esegui una query SPARQL su DBpedia per trovare le città italiane."* (Userà `query_external_endpoint`)
-*   *"Dammi una panoramica dell'ontologia in `/home/user/mia-ontologia.ttl`."* (Userà `inspect_local_ontology`)
-*   *"Quali classi della mia ontologia esistono già in schema.gov.it?"* (Userà `compare_local_with_remote`)
-*   *"Trova tutte le classi senza rdfs:label nel file locale."* (Userà `query_local_ontology`)
+*   *"Dammi una panoramica dell'ontologia in `/srv/ontologie/mia-ontologia.ttl`."* (Userà `inspect_local_ontology` con `file_path`, se il file è davvero leggibile dal server)
+*   *"Ho un server MCP remoto e un file TTL sul mio laptop: caricalo via `POST /upload` e poi confronta le classi con schema.gov.it."* (Userà `upload_id` + `compare_local_with_remote`)
+*   *"Trova tutte le classi senza rdfs:label nel file che ho appena caricato via upload."* (Userà `query_local_ontology` con `upload_id`)
 *   *"Esistono vocabolari internazionali nel settore pubblico che potremmo allineare a schema.gov.it?"* (Userà `search_okg_resources`)
 *   *"La classe Person di CPV ha equivalenti riconosciuti a livello internazionale?"* (Userà `find_okg_alignments`)
 *   *"Quali tool open source posso usare per lavorare con SKOS e OWL?"* (Userà `find_semantic_software`)
@@ -262,8 +299,8 @@ Una volta configurato, puoi chiedere all'agente cose come:
 *   **Prefixes Automatici**: Non serve definire `rdf:`, `owl:`, `skos:`, ecc. nelle query interne. Il server li aggiunge automaticamente. Per gli endpoint esterni i prefissi non vengono iniettati di default.
 *   **Compressione Token**: Le liste lunghe (> 5 item) vengono restituite in formato tabellare compatto per risparmiare token.
 *   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection.
-*   **Ontologia Locale**: I tool del gruppo 10 (`inspect_local_ontology`, `query_local_ontology`, `compare_local_with_remote`) usano [oxigraph](https://github.com/oxigraph/oxigraph) (WASM) per caricare file RDF/OWL locali in memoria ed eseguire SPARQL. I file vengono cachati dopo il primo caricamento; le query successive sullo stesso file non rileggono il disco. Formati supportati: `.ttl`, `.owl`, `.rdf`, `.nt`, `.jsonld`.
-*   **Workflow Upload HTTP**: Il tool del gruppo 11 (`query_uploaded_store`) permette di interrogare via SPARQL uno store temporaneo creato via `POST /upload`, con scadenza automatica dopo un'ora.
+*   **Ontologia Locale**: I tool del gruppo 10 (`inspect_local_ontology`, `query_local_ontology`, `compare_local_with_remote`) usano [oxigraph](https://github.com/oxigraph/oxigraph) (WASM) per caricare file RDF/OWL in memoria ed eseguire SPARQL. `file_path` funziona solo per file davvero leggibili dal processo server; non trasferisce file dal client. I file vengono cachati dopo il primo caricamento; le query successive sullo stesso file non rileggono il disco. Formati supportati: `.ttl`, `.owl`, `.rdf`, `.nt`, `.jsonld`.
+*   **Workflow Upload HTTP**: Il tool del gruppo 11 (`query_uploaded_store`) permette di interrogare via SPARQL uno store temporaneo creato via `POST /upload`, con scadenza automatica dopo un'ora. In modalità HTTP/SSE remota questo è il fallback consigliato quando il file non è accessibile via `file_path`.
 *   **Open Knowledge Graphs (OKG)**: I tool del gruppo 13 chiamano `api.openknowledgegraphs.com` (REST JSON, CC0, nessuna autenticazione, timeout 10s). Le categorie tematiche vengono scaricate dinamicamente dalla root dell'API (`GET /`) al primo utilizzo e messe in cache in memoria per la durata della sessione; non è più necessario aggiornarle manualmente nel codice. Il tool `compare_coverage_with_okg` combina una chiamata OKG con una query SPARQL su schema.gov.it usando i Wikidata ID come chiave di collegamento.
 *   **Logging**: Tutte le chiamate vengono loggate in `logs/usage_log.jsonl` per analisi e miglioramento continuo. Ogni entry include argomenti, riepilogo, `source_data_metrics` e `ai_data_metrics`: metriche quantitative dei dati ricevuti e del payload finale passato al modello, ad esempio numero di caratteri e, quando rilevabile, righe, colonne o numero di elementi.
 *   **Trasporto**: Il server supporta sia `stdio` (default, per uso locale) che HTTP/SSE (via `MCP_TRANSPORT=sse`, per uso remoto/Docker).
