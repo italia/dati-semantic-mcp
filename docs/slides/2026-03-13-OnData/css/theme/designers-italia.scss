@@ -1,0 +1,366 @@
+/**
+ * Tema Designers Italia per reveal.js
+ *
+ * Segue i token del Design System .italia (Bootstrap Italia)
+ * Fonte token: https://designers.italia.it/design-system/
+ *
+ * Palette (da MCP designers-italia):
+ *   --it-color-background-primary         → #0066cc  (blue-40)
+ *   --it-color-background-primary-muted   → #004d99  (blue-30)
+ *   --it-color-background-primary-deep    → #003366  (blue-20)
+ *   --it-color-background-primary-lighter → #f2f7fc  (blue-97)
+ *
+ * Tipografia (da MCP designers-italia):
+ *   --it-font-sans  → 'Titillium Web'
+ *   --it-font-serif → Lora
+ *   --it-font-mono  → 'Roboto Mono'
+ */
+
+@use 'sass:color';
+@use 'sass:string';
+@use 'template/mixins' as mixins;
+
+// ── Design tokens Designers Italia ────────────────────────────────────────
+// Colori
+$bi-primary:      #0066cc;   // --it-color-background-primary (blue-40)
+$bi-primary-muted: #004d99;  // --it-color-background-primary-muted (blue-30)
+$bi-primary-deep:  #003366;  // --it-color-background-primary-deep (blue-20)
+$bi-primary-light: #f2f7fc;  // --it-color-background-primary-lighter (blue-97)
+
+$bi-dark:         #17334f;   // testo heading scuro / --bs-dark
+$bi-body:         #1a1a1a;   // testo corpo
+$bi-secondary:    #5d7083;   // secondario
+$bi-bg:           #ffffff;
+$bi-border:       #d0d9e0;
+$bi-success:      #008055;
+$bi-danger:       #cc334d;
+
+// Font (--it-font-sans / --it-font-serif / --it-font-mono)
+$font-sans:  "'Titillium Web', 'Segoe UI', 'Helvetica Neue', sans-serif";
+$font-serif: "Lora, Georgia, serif";
+$font-mono:  "'Roboto Mono', 'Consolas', monospace";
+
+// ── Variabili tema reveal.js ───────────────────────────────────────────────
+@use 'template/settings' with (
+	$background-color: $bi-bg,
+
+	$main-color:     $bi-body,
+	$main-font:      $font-sans,
+	$main-font-size: 32px,
+
+	$heading-color:            $bi-dark,
+	$heading-font:             $font-sans,
+	$heading-font-weight:      700,
+	$heading-text-transform:   none,
+	$heading-letter-spacing:   -0.01em,
+	$heading-line-height:      1.2,
+	$heading1-size:            2.5em,
+	$heading2-size:            1.55em,
+	$heading3-size:            1.15em,
+	$heading4-size:            1em,
+
+	$code-font: $font-mono,
+
+	$link-color:                $bi-primary,
+	$link-color-hover:          $bi-primary-muted,
+	$selection-color:           #fff,
+	$selection-background-color: $bi-primary,
+
+	$overlay-element-bg-color: '0, 0, 0',
+	$overlay-element-fg-color: '240, 240, 240'
+);
+
+// Inietta il template base
+@use 'template/theme';
+
+// ── Font Google (Titillium Web + Lora + Roboto Mono) ──────────────────────
+@import url('https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Lora:ital,wght@0,400;1,400&family=Roboto+Mono:wght@400;500&display=swap');
+
+// Testo chiaro su sfondi scuri
+@include mixins.dark-bg-text-color(#fff);
+
+// ── Layout base ───────────────────────────────────────────────────────────
+// Sfondo viewport con il grigio chiarissimo istituzionale
+.reveal-viewport {
+	background-color: $bi-primary-light;
+}
+
+// Testo allineato a sinistra (stile documento, non centrato come default)
+.reveal .slides {
+	text-align: left;
+}
+
+// ── Slide — card con bordo superiore blu primario ─────────────────────────
+// Pattern ispirato alle card Bootstrap Italia.
+// Applichiamo la card solo alle slide reali, non ai contenitori .stack,
+// altrimenti nelle slide verticali compare una doppia cornice.
+.reveal .slides > section:not(.stack),
+.reveal .slides > section.stack > section {
+	background: $bi-bg;
+	border: 1px solid $bi-border;
+	border-top: 4px solid $bi-primary;
+	border-radius: 4px;
+	padding: 1.1em 1.5em 1.4em;
+	box-sizing: border-box;
+	box-shadow: 0 2px 10px rgba(23, 51, 79, 0.10);
+	overflow: hidden;
+}
+
+.reveal .slides > section.stack {
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+	padding: 0;
+	overflow: visible;
+}
+
+// ── H2: bordo sinistro blu (pattern card/sezione Bootstrap Italia) ─────────
+.reveal h2 {
+	padding-left: 0.55em;
+	border-left: 4px solid $bi-primary;
+	color: $bi-dark;
+}
+
+// H3: colore secondario (gerarchia visiva)
+.reveal h3 {
+	color: $bi-secondary;
+}
+
+// Uniforma il tono visivo degli header nelle slide contenuto:
+// h1 e h2 condividono lo stesso accento laterale e una gerarchia piu stabile.
+.reveal .slides > section:not(#title-slide):not(.title-slide) > h1,
+.reveal .slides > section.stack > section:not(#title-slide):not(.title-slide) > h1,
+.reveal .slides > section:not(#title-slide):not(.title-slide) > h2,
+.reveal .slides > section.stack > section:not(#title-slide):not(.title-slide) > h2 {
+	padding-left: 0.55em;
+	border-left: 4px solid $bi-primary;
+	margin-bottom: 0.7em;
+}
+
+.reveal .slides > section:not(#title-slide):not(.title-slide) > h1,
+.reveal .slides > section.stack > section:not(#title-slide):not(.title-slide) > h1 {
+	font-size: 2em;
+	line-height: 1.05;
+}
+
+// ── Slide di titolo — blu pieno (hero slide) ──────────────────────────────
+// Primo piano con sfondo primario blu, ispirato all'hero Bootstrap Italia
+.reveal .slides > section#title-slide,
+.reveal .slides > section.title-slide,
+.reveal .slides > section.stack > section#title-slide,
+.reveal .slides > section.stack > section.title-slide {
+	background: $bi-primary;
+	border: none;
+	border-radius: 0;
+	box-shadow: none;
+	padding: 1.6em 2.2em 1.9em;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	align-items: flex-start;
+	gap: 1rem;
+	width: 100% !important;
+	height: 100% !important;
+	top: 0 !important;
+	left: 0 !important;
+
+	h1 {
+		color: #fff;
+		border: none;
+		letter-spacing: -0.02em;
+		font-size: 2.35em;
+		line-height: 1.02;
+		margin: 0 0 0.25em;
+	}
+
+	h2 {
+		color: rgba(255, 255, 255, 0.85);
+		border-left-color: rgba(255, 255, 255, 0.45);
+		max-width: 11.5em;
+		font-size: 1.4em;
+		line-height: 1.18;
+		margin: 0;
+	}
+
+	p,
+	li {
+		color: rgba(255, 255, 255, 0.88);
+	}
+
+	a {
+		color: #fff;
+		font-weight: 600;
+		text-decoration-color: rgba(255, 255, 255, 0.72);
+		text-underline-offset: 0.16em;
+		margin-top: auto;
+	}
+
+	a:hover,
+	a:focus {
+		color: $bi-primary-light;
+		text-decoration-color: $bi-primary-light;
+	}
+}
+
+// ── Testo ─────────────────────────────────────────────────────────────────
+.reveal p,
+.reveal li {
+	line-height: 1.5;
+}
+
+.reveal p {
+	margin: 0.55em 0;
+}
+
+.reveal li {
+	margin: 0.22em 0;
+}
+
+.reveal small {
+	display: block;
+	font-size: 0.68em;
+	line-height: 1.4;
+}
+
+// Strong: dark navy per gerarchia
+.reveal strong,
+.reveal b {
+	color: $bi-dark;
+	font-weight: 700;
+}
+
+// Em: font serif (Lora) per enfasi elegante, stile editoriale
+.reveal em {
+	font-family: string.unquote($font-serif);
+	font-style: italic;
+	color: $bi-secondary;
+}
+
+// ── Link ──────────────────────────────────────────────────────────────────
+.reveal a {
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+// ── Code — stile Bootstrap Italia ────────────────────────────────────────
+.reveal code {
+	font-size: 0.74em;
+	color: $bi-primary;
+	background: $bi-primary-light;
+	padding: 0.1em 0.32em;
+	border-radius: 3px;
+	border: 1px solid #bdd0e0;
+}
+
+// Blocco codice: bordo sinistro blu, sfondo light
+.reveal pre {
+	width: 100%;
+	border-left: 3px solid $bi-primary;
+	border-radius: 0 4px 4px 0;
+	background: $bi-primary-light;
+	box-shadow: none;
+	margin: 0.8em 0;
+}
+
+.reveal pre code {
+	background: transparent;
+	border: none;
+	color: $bi-body;
+	font-size: 0.72em;
+	max-height: 420px;
+}
+
+// ── Blockquote — callout Bootstrap Italia ────────────────────────────────
+.reveal blockquote {
+	width: 100%;
+	background: $bi-primary-light;
+	border-left: 4px solid $bi-primary;
+	border-radius: 0 4px 4px 0;
+	box-shadow: none;
+	padding: 0.7em 1.1em;
+	font-style: normal;
+	color: $bi-body;
+	margin: 0.8em 0;
+
+	p:first-child,
+	p:last-child {
+		display: block;
+	}
+}
+
+// ── Liste ─────────────────────────────────────────────────────────────────
+.reveal ul,
+.reveal ol {
+	margin-left: 1.15em;
+}
+
+.reveal li {
+	margin: 0.3em 0;
+}
+
+// Bullet blu primario
+.reveal ul > li::marker {
+	color: $bi-primary;
+}
+
+// ── Tabelle — stile dati Bootstrap Italia ────────────────────────────────
+.reveal table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.8em;
+	margin-top: 0.4em;
+}
+
+.reveal th,
+.reveal td {
+	border: 1px solid $bi-border;
+	padding: 0.45em 0.6em;
+	vertical-align: top;
+}
+
+.reveal th {
+	background: $bi-primary-light;
+	color: $bi-dark;
+	font-weight: 700;
+	border-bottom: 2px solid $bi-primary;
+}
+
+// Righe alternate: zebra leggera
+.reveal tr:nth-child(even) td {
+	background: color.scale($bi-primary-light, $lightness: 40%);
+}
+
+// ── Media ─────────────────────────────────────────────────────────────────
+.reveal img {
+	border: 1px solid $bi-border;
+	border-radius: 4px;
+	box-shadow: 0 2px 10px rgba(23, 51, 79, 0.10);
+	background: $bi-bg;
+}
+
+// ── Progress bar ──────────────────────────────────────────────────────────
+.reveal .progress {
+	height: 3px;
+	background: $bi-border;
+	color: $bi-primary;
+}
+
+// ── Numero slide ──────────────────────────────────────────────────────────
+.reveal .slide-number {
+	color: $bi-secondary;
+	font-family: string.unquote($font-sans);
+	font-size: 0.55em;
+	background: transparent;
+}
+
+// ── Frecce navigazione ────────────────────────────────────────────────────
+.reveal .controls button {
+	color: $bi-primary;
+}
+
+// ── Responsive ────────────────────────────────────────────────────────────
+@media (max-width: 900px) {
+	.reveal {
+		font-size: 26px;
+	}
+}

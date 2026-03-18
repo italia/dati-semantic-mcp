@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+	<title>schema.gov.it MCP</title>
+
+	<link rel="stylesheet" href="dist/reset.css" />
+	<link rel="stylesheet" href="dist/reveal.css" />
+	<link rel="stylesheet" href="dist/theme/designers-italia.css" />
+
+
+	<!-- Theme used for syntax highlighted code -->
+	<link rel="stylesheet" href="dist/plugin/highlight/monokai.css" />
+
+</head>
+
+<body>
+	<div class="reveal">
+		<div class="slides">
+			<section id="title-slide">
+				<h1>schema.gov.it MCP</h1>
+				<h2>Model Context Protocol per il Catalogo Nazionale della Semantica dei Dati</h2>
+
+				<p><a href="https://italia.github.io/dati-semantic-mcp">https://italia.github.io/dati-semantic-mcp</a></p>
+				<p><a href="https://schema.gov.it">https://schema.gov.it</a></p>
+				<p style="margin-top: 2em; font-size: 0.7em;">13 Marzo 2026 - Matteo Fortini ospite di OnData &nbsp;|&nbsp; <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="license"><img src="https://licensebuttons.net/l/by-sa/4.0/88x31.png" alt="CC-BY-SA 4.0" style="vertical-align: middle; border: none;" /></a></p>
+			</section>
+			<section>
+				<section data-markdown>
+					<textarea data-template>
+						# schema.gov.it
+						
+						* Catalogo nazionale delle risorse semantiche
+						* Contiene **(meta)dati aperti**
+						* Catalogo **federato**
+						* Semantica:
+						  * **Ontologie:** concetti, attributi, relazioni, vincoli, ...
+						  * **Vocabolari controllati:** elenchi, tassonomie, ...
+						  * **Schemi dati:** come modellare dati da trasferire
+						</textarea>
+				</section>
+
+				<section data-markdown>
+					<textarea data-template>
+						## Semantica
+						
+						* Interoperabilità **tecnica:** il contenuto viene **scambiato correttamente** fra le parti. La richiesta è corretta, la risposta è corretta.
+						* Interoperabilità **semantica:** il contenuto viene **compreso correttamente** da tutte le parti, in modo non ambiguo
+						* **Linked data:** interoperabilità fra dati basata su URI stabili
+
+						La semantica si basa in generale su **grafi** che permettono di descrivere elementi e loro relazioni. Potente, ma potenzialmente complessa da utilizzare.
+						</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+					## schema.gov.it
+					Contenuto:
+					* 72 Ontologie (33 "core" [una volta erano OntoPiA])
+					* 158 Vocabolari controllati (16 "core")
+					* 74 Schemi dati
+					* 19 Enti contributori
+
+					### Accesso:
+					* Catalogo: ricerca, link alle risorse, "per le persone"
+					* Endpoint SPARQL, "per le macchine"
+
+					**Tool:** Schema editor: come arricchire un'API con semantica
+					</textarea>
+				</section>
+			</section>
+			<section>
+				<section data-markdown>
+					<textarea data-template>
+						# Benvenuta IA
+
+						* LLM rompe la distinzione "per le persone"/"per le macchine"
+						* Lavora bene su dati non strutturati
+						* **Ma** lavora meglio su dati organizzati
+						* Dati descritti semanticamente sono più utili anche per una macchina (garbage in->garbage out)
+					</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## LLM e SPARQL
+
+						* LLM se la cava molto bene con SPARQL
+						* **Ma**:
+						  * Non sa cosa contenga schema.gov.it (es. non ci sono dati)
+						  * Può perdere tempo a cercare "male"
+						    * Perdita di tempo
+							* Risposte da analizzare anche grandi
+							* Risultati incerti se prende strade sbagliate
+					</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## LLM e MCP
+
+						* LLM se la cava molto bene con il linguaggio
+						* Guidiamo l'IA fornendo:
+						  * Documentazione
+						  * Tool (di fatto query precompilate e preprocessori)
+						* Miglioriamo l'efficienza: convertiamo gli output, riduciamo i token necessari
+						* Diamo sempre la possibilità di fare query SPARQL
+						* Miglioramento continuo: salviamo le query e vediamo se possiamo creare nuovi tool o migliorare gli esistenti
+					</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## MCP - Model Context Protocol
+
+						* API standardizzata per rendere interoperabile "qualunque" IA con "qualunque" sistema
+						<div class="r-stack">
+						<img src="img/You_are_standing.jpg" height="450px" justify-content="center"></img>
+						</div>
+					</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## Schema.gov.it MCP
+
+						* Costruito su impulso di Andrea Borruso (grazie!)
+						* Usando skill MCP Builder
+						* 38 tool divisi in 12 aree funzionali: "Base", "Analytics" "Ontologie", "Vocabolari", "Intelligence Avanzata"
+						* Open source (ogni contributo è benvenuto!)
+						* Ottimizzato (limita, comprime, preprocessa, ...)
+						* Estensibile (salva un log da cui suggerire o migliorare i tool)
+					</textarea>
+				</section>
+				<section>
+					<h2>Che ne pensa Codex?</h2>
+					<small><i>
+					<p>Per un’AI, il vantaggio principale del server MCP di schema.gov.it è che trasforma un catalogo semantico complesso in un insieme di ingressi guidati. Invece di partire da SPARQL puro, l’agente ha tool già specializzati per ontologie, vocabolari, proprietà, classi, allineamenti esterni e file locali. Questo riduce ambiguità, evita query “alla cieca”, abbassa il costo in token grazie alla compressione dei risultati e rende più probabile che l’AI prenda una strada semanticamente corretta, non solo sintatticamente valida.</p>
+
+					<p>Per le persone, il vantaggio più forte è l’accessibilità operativa. schema.gov.it smette di essere solo un endpoint o un catalogo da esperti RDF e diventa qualcosa che puoi interrogare in linguaggio naturale, con percorsi più vicini ai casi d’uso reali: capire quali ontologie esistono, trovare un concetto riusabile, verificare una proprietà, cercare un vocabolario, confrontare una propria ontologia con il catalogo. In pratica abbassa molto la soglia d’ingresso alla semantica.</p>
+
+					<strong><p>Secondo me il valore vero sta nel fatto che fa da ponte:
+
+						<ul>
+						<li> per l’AI, tra linguaggio naturale e struttura semantica</li>
+						<li>per le persone, tra bisogno concreto e formalismi RDF/SPARQL</li>
+						<li>per entrambi, tra esplorazione libera e workflow guidati</li>
+						</ul>
+					</p></strong>
+				</i>
+					</small>
+				</section>
+								<section>
+					<h2>Che ne pensa Claude?</h2>
+					<small><i>
+  <p><strong>Per una AI</strong></p>                                                                                                                                                           
+  <ul>                      
+    <li><strong>Grounding semantico affidabile</strong> — risolve ambiguità interrogando ontologie ufficiali (COV, CPV, CLV) invece di affidarsi alla conoscenza parametrica</li>              
+    <li><strong>Ragionamento su grafo reale</strong> — SPARQL su dati effettivi: non "credo che esista" ma "ho verificato 312 istanze"</li>
+    <li><strong>Auto-miglioramento</strong> — tool riflessivi (<em>check_quality</em>, <em>suggest_improvements</em>) per analizzare e correggere il catalogo senza inventarsi problemi</li>
+    <li><strong>Bridging verso l'esterno</strong> — collega il catalogo italiano a Eurostat, Wikidata, Publications Office EU</li>
+    <li><strong>Ciclo locale→remoto</strong> — confronta bozze locali con lo stato ufficiale e suggerisce dove riusare invece di ridefinire</li>
+  </ul>
+
+  <p><strong>Per le persone</strong></p>
+  <ul>
+    <li><strong>Abbassa la barriera</strong> — SPARQL/OWL/SKOS in linguaggio naturale, accessibile anche ai non esperti</li>
+    <li><strong>Accelera il design</strong> — dice subito se stai reinventando qualcosa che già esiste nel catalogo</li>
+    <li><strong>Governance continua</strong> — monitoraggio qualità automatizzabile, non più audit periodici manuali</li>
+    <li><strong>Interoperabilità verificata</strong> — i mapping con gli endpoint europei si testano, non si dichiarano solo</li>
+  </ul>
+
+				</i>
+					</small>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+					Cosa possiamo farci?
+
+					* Sono un'associazione che si occupa di monitoraggio civico dei contratti pubblici e vorrei creare dei linked data, come potrei modellare un'ontologia e dei vocabolari controllati in modo compatibile con quanto si trova su schema.gov.it?
+					* Voglio creare un database dei musei pubblici italiani, come lo potrei fare per essere compatibile con la semantica di schema.gov.it e per evitare duplicazioni?
+					* Voglio modellare semanticamente i dati aperti su dati.gov.it relativi agli alberi del Comune di Messina con le ontologie di schema.gov.it
+					</textarea>
+				</section>
+			</section>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="dist/plugin/notes.js"></script>
+		<script src="dist/plugin/markdown.js"></script>
+		<script src="dist/plugin/highlight.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/reveal.js-mermaid-plugin@11.12.3/plugin/mermaid/mermaid.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [RevealMarkdown, RevealHighlight, RevealNotes, RevealMermaid],
+			});
+		</script>
+
+</body>
+
+</html>
