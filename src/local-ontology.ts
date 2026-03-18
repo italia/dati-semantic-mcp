@@ -234,8 +234,13 @@ export function convertGrapholToTurtle(content: string): string {
     turtleLines.push("");
   }
 
-  const entitiesById = new Map<string, GrapholEntity>();
+  // Build entity type map (IRI → kind) from diagram nodes, scoping IDs per-diagram
+  // to avoid cross-diagram ID collisions (each diagram reuses n1, n2, …).
+  const entitiesByIri = new Map<string, GrapholEntity>();
+  const emittedEdges = new Set<string>();
+
   for (const diagram of findElements(content, "diagram")) {
+    const localMap = new Map<string, GrapholEntity>();
     for (const node of findElements(diagram.body, "node")) {
       const id = node.attrs.id;
       const kind = grapholTypeToEntityKind(node.attrs.type);
@@ -248,12 +253,27 @@ export function convertGrapholToTurtle(content: string): string {
 
       const label = normalizeLabel(getTagText(node.body, "label"));
       const entity: GrapholEntity = label ? { id, iri, kind, label } : { id, iri, kind };
-      entitiesById.set(id, entity);
+      localMap.set(id, entity);
+      if (!entitiesByIri.has(iri)) entitiesByIri.set(iri, entity);
+    }
+
+    // Process edges within the same diagram using its local ID map
+    for (const edge of findElements(diagram.body, "edge")) {
+      const edgeType = (edge.attrs.type ?? "").toLowerCase();
+      const source = edge.attrs.source ? localMap.get(edge.attrs.source) : undefined;
+      const target = edge.attrs.target ? localMap.get(edge.attrs.target) : undefined;
+      if (!source || !target) continue;
+      const predicate = grapholEdgePredicate(source, target, edgeType);
+      if (!predicate) continue;
+      const triple = `<${escapeIri(source.iri)}> ${predicate} <${escapeIri(target.iri)}> .`;
+      if (emittedEdges.has(triple)) continue;
+      emittedEdges.add(triple);
+      turtleLines.push(triple);
     }
   }
 
   const emittedEntities = new Set<string>();
-  for (const entity of entitiesById.values()) {
+  for (const entity of entitiesByIri.values()) {
     if (emittedEntities.has(entity.iri)) continue;
     emittedEntities.add(entity.iri);
     turtleLines.push(`<${escapeIri(entity.iri)}> a ${grapholEntityTypeTriple(entity.kind)} .`);
@@ -264,19 +284,36 @@ export function convertGrapholToTurtle(content: string): string {
 
   if (emittedEntities.size > 0) turtleLines.push("");
 
-  const emittedEdges = new Set<string>();
-  for (const diagram of findElements(content, "diagram")) {
-    for (const edge of findElements(diagram.body, "edge")) {
-      const edgeType = (edge.attrs.type ?? "").toLowerCase();
-      const source = edge.attrs.source ? entitiesById.get(edge.attrs.source) : undefined;
-      const target = edge.attrs.target ? entitiesById.get(edge.attrs.target) : undefined;
-      if (!source || !target) continue;
-      const predicate = grapholEdgePredicate(source, target, edgeType);
-      if (!predicate) continue;
-      const triple = `<${escapeIri(source.iri)}> ${predicate} <${escapeIri(target.iri)}> .`;
-      if (emittedEdges.has(triple)) continue;
-      emittedEdges.add(triple);
-      turtleLines.push(triple);
+  // Extract annotations (rdfs:label, rdfs:comment, …) from the <iris> section
+  const irisSection = findFirstElement(ontology.body, "iris");
+  if (irisSection) {
+    const emittedAnnotations = new Set<string>();
+    for (const iriEl of findElements(irisSection.body, "iri")) {
+      const iriValue = getTagText(iriEl.body, "value");
+      if (!iriValue || !/^https?:\/\//i.test(iriValue)) continue;
+      const annotationsEl = findFirstElement(iriEl.body, "annotations");
+      if (!annotationsEl) continue;
+      for (const ann of findElements(annotationsEl.body, "annotation")) {
+        const property = getTagText(ann.body, "property");
+        if (!property) continue;
+        const lexicalForm = getTagText(ann.body, "lexicalForm");
+        if (!lexicalForm) continue;
+        const language = getTagText(ann.body, "language");
+        const datatype = getTagText(ann.body, "datatype");
+        const escaped = escapeTurtleLiteral(lexicalForm);
+        let objectLiteral: string;
+        if (language && language.trim()) {
+          objectLiteral = `"${escaped}"@${language.trim()}`;
+        } else if (datatype && datatype !== "None" && datatype !== "http://www.w3.org/1999/02/22-rdf-syntax-ns#PlainLiteral") {
+          objectLiteral = `"${escaped}"^^<${escapeIri(datatype)}>`;
+        } else {
+          objectLiteral = `"${escaped}"`;
+        }
+        const triple = `<${escapeIri(iriValue)}> <${escapeIri(property)}> ${objectLiteral} .`;
+        if (emittedAnnotations.has(triple)) continue;
+        emittedAnnotations.add(triple);
+        turtleLines.push(triple);
+      }
     }
   }
 
