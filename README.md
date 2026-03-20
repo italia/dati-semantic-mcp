@@ -10,7 +10,7 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 ## Strumenti disponibili
 
-Il server espone **43 strumenti** organizzati in 13 categorie:
+Il server espone **44 strumenti** organizzati in 13 categorie:
 
 ### 1. Operazioni Base
 *   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint. Utile per esplorazione ad-hoc.
@@ -66,7 +66,8 @@ Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il
 
 ### 10. Ontologia Locale
 *   `inspect_local_ontology`: Carica e riassume un'ontologia RDF/OWL disponibile al server via `file_path`, contenuto inline o `upload_id`. Attenzione: `file_path` indica sempre un path leggibile dal server MCP, non dal laptop dell'utente.
-*   `inspect_local_concept`: **Deep dive con ereditarietà** su una classe o concetto in un'ontologia locale o caricata. Restituisce definizione, gerarchia, proprietà dirette (`own_properties`) e proprietà ereditate dagli antenati (`inherited_properties`, con indicazione dell'antenato di provenienza). oxigraph non fa inferenza RDFS automatica: questo tool traversa esplicitamente la catena `rdfs:subClassOf+` / `skos:broader+` per restituire il profilo completo.
+*   `inspect_local_concept`: **Deep dive su una classe** (locale o caricata). Parametro `mode`: `raw` (solo triple esplicite: definition, hierarchy, usage, own_properties) oppure `effective` (default, aggiunge inherited_properties via `rdfs:subClassOf+`/`skos:broader+` e incoming/outgoing). Distingue chiaramente proprietà con dominio asserted su questa classe da quelle ereditate dalle superclassi. Limite: traversa solo le superclassi presenti nel file locale; per le proprietà con super-proprietà esterne usa `inspect_local_property`.
+*   `inspect_local_property`: **Deep dive su una proprietà** (locale o caricata). Espone separatamente: `assertedDomain`/`assertedRange` (dichiarati nel file), `inheritedDomain`/`inheritedRange` (da super-proprietà via `rdfs:subPropertyOf+`, con indicazione dell'antenato), `effectiveDomain`/`effectiveRange` (unione). Per super-proprietà non presenti nel file locale (es. l0:name, l0:description da ontologie importate), interroga automaticamente schema.gov.it come fallback. Ogni super-proprietà è marcata con source `local` | `remote` | `not-found`. Include nota sul limite Unicode nei nomi locali SPARQL con oxigraph.
 *   `query_local_ontology`: Esegue una query SPARQL SELECT su un'ontologia accessibile dal server o caricata prima via `POST /upload`. Prefissi standard iniettati automaticamente. Risultati compressi come gli altri tool.
 *   `compare_local_with_remote`: Confronta le classi/proprietà definite in un'ontologia accessibile dal server o via `upload_id` con quelle presenti in schema.gov.it — utile per scoprire cosa riusare o allineare.
 

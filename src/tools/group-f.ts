@@ -81,24 +81,40 @@ server.registerTool(
   "inspect_concept",
   {
     title: "Inspect Concept",
-    description: `Get a comprehensive profile of a concept, including full inherited property chain.
+    description: `Get a comprehensive profile of a concept from schema.gov.it, with explicit raw vs effective views.
 
 **Args:**
 - uri: URI of the concept to inspect
+- mode: "raw" | "effective" (default: "effective")
 
-**Returns:**
-- definition: Literal properties of the concept
-- hierarchy: Type, direct parents (superclasses/broader), and children (subclasses/narrower)
-- usage: Instance count
-- own_properties: Properties whose rdfs:domain is exactly this class (schema-level, declared directly on this class)
-- inherited_properties: Properties inherited from ancestor classes via rdfs:subClassOf+/skos:broader+, each annotated with the ancestor it comes from
-- incoming: Properties pointing to instances of this type (data-level)
-- outgoing: Properties used by instances of this type (data-level)
+**mode: "raw"** — only explicitly asserted triples:
+- definition: literal annotations (label, comment, definition…)
+- hierarchy: direct type, parent classes (rdfs:subClassOf / skos:broader), child classes
+- usage: instance count
+- own_properties: properties with rdfs:domain exactly this class
 
-**Note:** own_properties + inherited_properties give the full effective property set of the class.
+**mode: "effective"** (default) — full OWL/RDFS-implied view, adds:
+- inherited_properties: properties from ancestor classes via rdfs:subClassOf+/skos:broader+, each row annotated with the ancestor that declares domain (distinguishes asserted-on-this-class from inherited)
+- incoming: properties pointing to instances of this type (data-level)
+- outgoing: properties used by instances of this type (data-level)
+
+**Interpreting own vs inherited:**
+- own_properties = rdfs:domain written explicitly for this class → if missing, the property may still apply via inheritance
+- inherited_properties = rdfs:domain written on an ancestor → redundant to re-assert on this class unless restricting range
+- A property absent from both may still apply via owl:restriction, owl:equivalentClass, or owl:unionOf/intersectionOf (not shown — use query_sparql for those cases)
+
+**Limitations of effective mode:**
+- owl:equivalentClass: not expanded (equivalent classes share all properties but this tool shows only the rdfs:subClassOf chain)
+- owl:unionOf / owl:intersectionOf: not traversed (anonymous class expressions)
+- owl:imports: schema.gov.it resolves these server-side; the endpoint already includes imported triples
+
 All queries run in parallel for performance.`,
     inputSchema: {
       uri: z.string().describe("The URI of the concept to inspect"),
+      mode: z.enum(["raw", "effective"]).optional().default("effective").describe(
+        '"raw": only asserted triples (own_properties, no ancestor traversal). ' +
+        '"effective" (default): adds inherited_properties via rdfs:subClassOf+/skos:broader+ and data-level incoming/outgoing.'
+      ),
     },
     annotations: {
       readOnlyHint: true,
@@ -107,9 +123,10 @@ All queries run in parallel for performance.`,
       openWorldHint: true,
     },
   },
-  async ({ uri }) => {
+  async ({ uri, mode }) => {
     const safeUri = sanitizeSparqlUri(uri);
-    const queries: Record<string, string> = {
+
+    const baseQueries: Record<string, string> = {
       definition: `
         SELECT ?p ?o WHERE { <${safeUri}> ?p ?o . FILTER(ISLITERAL(?o)) }
       `,
@@ -140,6 +157,9 @@ All queries run in parallel for performance.`,
         ORDER BY ?prop
         LIMIT 50
       `,
+    };
+
+    const effectiveOnlyQueries: Record<string, string> = {
       inherited_properties: `
         SELECT DISTINCT ?ancestor ?ancestorLabel ?prop ?propType ?propLabel ?range ?rangeLabel WHERE {
           <${safeUri}> rdfs:subClassOf+|skos:broader+ ?ancestor .
@@ -170,7 +190,11 @@ All queries run in parallel for performance.`,
       `,
     };
 
-    return executeTool("inspect_concept", { uri }, async () => {
+    const queries = mode === "raw"
+      ? baseQueries
+      : { ...baseQueries, ...effectiveOnlyQueries };
+
+    return executeTool("inspect_concept", { uri, mode }, async () => {
       const entries = Object.entries(queries);
       const sparqlResults = await Promise.all(
         entries.map(([, q]) => executeSparql(q))
@@ -190,7 +214,14 @@ All queries run in parallel for performance.`,
         0
       );
 
-      return { success: true, data: results, rowCount: totalRows };
+      return {
+        success: true,
+        data: {
+          mode,
+          ...results,
+        },
+        rowCount: totalRows,
+      };
     });
   }
 );

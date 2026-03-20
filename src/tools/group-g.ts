@@ -70,18 +70,35 @@ server.registerTool(
   "get_property_details",
   {
     title: "Get Property Details",
-    description: `Get comprehensive details of a specific property, including inherited characteristics.
+    description: `Get comprehensive details of a specific property from schema.gov.it, with explicit raw vs effective views.
 
 **Args:**
 - propertyUri: URI of the property
+- mode: "raw" | "effective" (default: "effective")
 
-**Returns:**
-- definition: Direct attributes (type, domain, range, label, comment, inverse, subPropertyOf, functional flags)
-- inherited_from: For each ancestor property (via rdfs:subPropertyOf+), its attributes — shows what this property inherits from its property hierarchy
+**mode: "raw"** — only explicitly asserted triples:
+- definition: type, label, comment, rdfs:domain, rdfs:range, rdfs:subPropertyOf, owl:inverseOf, functional flags
 
-**Use when:** You want to understand a property fully, including what it inherits from parent properties.`,
+**mode: "effective"** (default) — full inherited view, adds:
+- assertedDomain: rdfs:domain declared directly on this property
+- assertedRange: rdfs:range declared directly on this property
+- superproperties: ancestor chain via rdfs:subPropertyOf+, each with hasDomainLocally / hasRangeLocally flags
+- inheritedDomain: domain values from super-properties, each annotated with ancestor URI and label
+- inheritedRange: range values from super-properties, each annotated with ancestor URI and label
+- effectiveDomain: deduplicated union of assertedDomain + inheritedDomain
+- effectiveRange: deduplicated union of assertedRange + inheritedRange
+
+**Interpreting the output:**
+- If assertedDomain is empty but effectiveDomain is not → domain is inherited; no need to re-assert it on this property
+- If assertedDomain equals effectiveDomain → the domain is fully explicit, not relying on inheritance
+- If a property is asserted in the subproperty chain and the local TTL already re-asserts the same domain → that axiom is redundant
+- owl:equivalentProperty and owl:equivalentClass expansions are not included (use query_sparql for those)`,
     inputSchema: {
       propertyUri: z.string().describe("URI of the property to inspect"),
+      mode: z.enum(["raw", "effective"]).optional().default("effective").describe(
+        '"raw": only asserted triples. ' +
+        '"effective" (default): adds assertedDomain/Range, super-property chain, inheritedDomain/Range, effectiveDomain/Range.'
+      ),
     },
     annotations: {
       readOnlyHint: true,
@@ -90,7 +107,7 @@ server.registerTool(
       openWorldHint: true,
     },
   },
-  async ({ propertyUri }) => {
+  async ({ propertyUri, mode }) => {
     const safeUri = sanitizeSparqlUri(propertyUri);
 
     const definitionQuery = `
@@ -110,41 +127,92 @@ server.registerTool(
       }
     `;
 
-    const inheritedQuery = `
-      SELECT DISTINCT ?ancestor ?ancestorLabel ?p ?o WHERE {
-        <${safeUri}> rdfs:subPropertyOf+ ?ancestor .
-        FILTER(isIRI(?ancestor))
-        ?ancestor ?p ?o .
-        FILTER(?p IN (
-          rdf:type,
-          rdfs:label,
-          rdfs:comment,
-          rdfs:domain,
-          rdfs:range,
-          owl:inverseOf
-        ))
-        OPTIONAL { ?ancestor rdfs:label ?ancestorLabel . FILTER(LANG(?ancestorLabel) = "" || LANG(?ancestorLabel) = "it") }
+    return executeTool<unknown>("get_property_details", { propertyUri, mode }, async () => {
+      const defResult = await executeSparql(definitionQuery);
+
+      if (mode === "raw") {
+        return {
+          success: true,
+          data: { mode, definition: compressSparqlResult(defResult) },
+          rowCount: defResult.results?.bindings?.length ?? 0,
+        };
       }
-      ORDER BY ?ancestor ?p
-      LIMIT 100
-    `;
 
-    return executeTool("get_property_details", { propertyUri }, async () => {
-      const [defResult, inheritedResult] = await Promise.all([
-        executeSparql(definitionQuery),
-        executeSparql(inheritedQuery),
-      ]);
+      // effective mode: also query super-property chain with domain/range per ancestor
+      const superQuery = `
+        SELECT DISTINCT ?ancestor ?ancestorLabel ?domain ?range WHERE {
+          <${safeUri}> rdfs:subPropertyOf+ ?ancestor .
+          FILTER(isIRI(?ancestor))
+          OPTIONAL { ?ancestor rdfs:label ?ancestorLabel . FILTER(LANG(?ancestorLabel) = "" || LANG(?ancestorLabel) = "it") }
+          OPTIONAL { ?ancestor rdfs:domain ?domain }
+          OPTIONAL { ?ancestor rdfs:range ?range }
+        }
+        ORDER BY ?ancestor
+        LIMIT 50
+      `;
+      const superResult = await executeSparql(superQuery);
 
-      const results = {
-        definition: compressSparqlResult(defResult),
-        inherited_from: compressSparqlResult(inheritedResult),
-      };
+      // Extract asserted domain / range from definition
+      const RDFS_DOMAIN = "http://www.w3.org/2000/01/rdf-schema#domain";
+      const RDFS_RANGE  = "http://www.w3.org/2000/01/rdf-schema#range";
+      const assertedDomain: string[] = [];
+      const assertedRange:  string[] = [];
+      for (const b of defResult.results?.bindings ?? []) {
+        if (b.p?.value === RDFS_DOMAIN && b.o?.value) assertedDomain.push(b.o.value);
+        if (b.p?.value === RDFS_RANGE  && b.o?.value) assertedRange.push(b.o.value);
+      }
+
+      // Build super-property map
+      type SuperInfo = { uri: string; label: string; domains: string[]; ranges: string[] };
+      const superMap = new Map<string, SuperInfo>();
+      for (const b of superResult.results?.bindings ?? []) {
+        const aUri = b.ancestor?.value ?? "";
+        if (!aUri) continue;
+        if (!superMap.has(aUri)) superMap.set(aUri, { uri: aUri, label: "", domains: [], ranges: [] });
+        const info = superMap.get(aUri)!;
+        if (b.ancestorLabel?.value && !info.label) info.label = b.ancestorLabel.value;
+        if (b.domain?.value && !info.domains.includes(b.domain.value)) info.domains.push(b.domain.value);
+        if (b.range?.value  && !info.ranges.includes(b.range.value))   info.ranges.push(b.range.value);
+      }
+
+      // Build inherited lists (annotated with ancestor)
+      const inheritedDomain: Array<{ ancestor: string; ancestorLabel: string; domain: string }> = [];
+      const inheritedRange:  Array<{ ancestor: string; ancestorLabel: string; range:  string }> = [];
+      for (const info of superMap.values()) {
+        for (const d of info.domains) inheritedDomain.push({ ancestor: info.uri, ancestorLabel: info.label, domain: d });
+        for (const r of info.ranges)  inheritedRange.push({ ancestor: info.uri,  ancestorLabel: info.label, range:  r });
+      }
+
+      // Effective = deduplicated union
+      const effectiveDomain = [...new Set([...assertedDomain, ...inheritedDomain.map(x => x.domain)])];
+      const effectiveRange  = [...new Set([...assertedRange,  ...inheritedRange.map(x => x.range)])];
+
+      const superproperties = [...superMap.values()].map(info => ({
+        uri: info.uri,
+        label: info.label,
+        hasDomainLocally: info.domains.length > 0,
+        hasRangeLocally:  info.ranges.length  > 0,
+      }));
 
       const totalRows =
         (defResult.results?.bindings?.length ?? 0) +
-        (inheritedResult.results?.bindings?.length ?? 0);
+        (superResult.results?.bindings?.length ?? 0);
 
-      return { success: true, data: results, rowCount: totalRows };
+      return {
+        success: true,
+        data: {
+          mode,
+          definition: compressSparqlResult(defResult),
+          assertedDomain,
+          assertedRange,
+          superproperties,
+          inheritedDomain,
+          inheritedRange,
+          effectiveDomain,
+          effectiveRange,
+        },
+        rowCount: totalRows,
+      };
     });
   }
 );
