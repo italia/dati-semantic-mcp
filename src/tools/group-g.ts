@@ -70,20 +70,16 @@ server.registerTool(
   "get_property_details",
   {
     title: "Get Property Details",
-    description: `Get comprehensive details of a specific property.
+    description: `Get comprehensive details of a specific property, including inherited characteristics.
 
 **Args:**
 - propertyUri: URI of the property
 
 **Returns:**
-- type: ObjectProperty or DatatypeProperty
-- domain: Class(es) this property applies to
-- range: Class or datatype of values
-- label: Human-readable name
-- comment: Description
-- inverse: Inverse property if defined
-- subPropertyOf: Parent property if defined
-- functional: Whether it's a FunctionalProperty`,
+- definition: Direct attributes (type, domain, range, label, comment, inverse, subPropertyOf, functional flags)
+- inherited_from: For each ancestor property (via rdfs:subPropertyOf+), its attributes — shows what this property inherits from its property hierarchy
+
+**Use when:** You want to understand a property fully, including what it inherits from parent properties.`,
     inputSchema: {
       propertyUri: z.string().describe("URI of the property to inspect"),
     },
@@ -96,7 +92,8 @@ server.registerTool(
   },
   async ({ propertyUri }) => {
     const safeUri = sanitizeSparqlUri(propertyUri);
-    const query = `
+
+    const definitionQuery = `
       SELECT ?p ?o
       WHERE {
         <${safeUri}> ?p ?o .
@@ -112,7 +109,43 @@ server.registerTool(
         ) || ?p = rdf:type && ?o IN (owl:FunctionalProperty, owl:InverseFunctionalProperty, owl:SymmetricProperty, owl:TransitiveProperty))
       }
     `;
-    return executeSparqlTool("get_property_details", { propertyUri }, query);
+
+    const inheritedQuery = `
+      SELECT DISTINCT ?ancestor ?ancestorLabel ?p ?o WHERE {
+        <${safeUri}> rdfs:subPropertyOf+ ?ancestor .
+        FILTER(isIRI(?ancestor))
+        ?ancestor ?p ?o .
+        FILTER(?p IN (
+          rdf:type,
+          rdfs:label,
+          rdfs:comment,
+          rdfs:domain,
+          rdfs:range,
+          owl:inverseOf
+        ))
+        OPTIONAL { ?ancestor rdfs:label ?ancestorLabel . FILTER(LANG(?ancestorLabel) = "" || LANG(?ancestorLabel) = "it") }
+      }
+      ORDER BY ?ancestor ?p
+      LIMIT 100
+    `;
+
+    return executeTool("get_property_details", { propertyUri }, async () => {
+      const [defResult, inheritedResult] = await Promise.all([
+        executeSparql(definitionQuery),
+        executeSparql(inheritedQuery),
+      ]);
+
+      const results = {
+        definition: compressSparqlResult(defResult),
+        inherited_from: compressSparqlResult(inheritedResult),
+      };
+
+      const totalRows =
+        (defResult.results?.bindings?.length ?? 0) +
+        (inheritedResult.results?.bindings?.length ?? 0);
+
+      return { success: true, data: results, rowCount: totalRows };
+    });
   }
 );
 
