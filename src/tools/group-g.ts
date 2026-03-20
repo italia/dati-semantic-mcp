@@ -87,11 +87,16 @@ server.registerTool(
 - inheritedRange: range values from super-properties, each annotated with ancestor URI and label
 - effectiveDomain: deduplicated union of assertedDomain + inheritedDomain
 - effectiveRange: deduplicated union of assertedRange + inheritedRange
+- redundancy_analysis: diagnostic view of each asserted value:
+  - "redundant": identical to an inherited value — the axiom can be dropped without semantic loss
+  - "specialization": a rdfs:subClassOf of an inherited value — genuinely narrows the domain/range
+  - "new": not present in any inherited value — adds information not implied by the super-property chain
+  - summary counts per category for quick overview
 
 **Interpreting the output:**
 - If assertedDomain is empty but effectiveDomain is not → domain is inherited; no need to re-assert it on this property
 - If assertedDomain equals effectiveDomain → the domain is fully explicit, not relying on inheritance
-- If a property is asserted in the subproperty chain and the local TTL already re-asserts the same domain → that axiom is redundant
+- Use redundancy_analysis.summary to immediately see if the local TTL has redundant axioms or genuine specializations
 - owl:equivalentProperty and owl:equivalentClass expansions are not included (use query_sparql for those)`,
     inputSchema: {
       propertyUri: z.string().describe("URI of the property to inspect"),
@@ -194,6 +199,73 @@ server.registerTool(
         hasRangeLocally:  info.ranges.length  > 0,
       }));
 
+      // Redundancy analysis
+      type AnalysisEntry = {
+        value: string;
+        status: "redundant" | "specialization" | "new";
+        inherited_match?: string;
+        specializes?: string[];
+      };
+
+      const inheritedDomainValues = new Set(inheritedDomain.map(x => x.domain));
+      const inheritedRangeValues  = new Set(inheritedRange.map(x => x.range));
+
+      const classifyInitial = (asserted: string[], inheritedValues: Set<string>): AnalysisEntry[] =>
+        asserted.map(v => inheritedValues.has(v)
+          ? { value: v, status: "redundant" as const, inherited_match: v }
+          : { value: v, status: "new" as const }
+        );
+
+      let domainAnalysis = classifyInitial(assertedDomain, inheritedDomainValues);
+      let rangeAnalysis  = classifyInitial(assertedRange,  inheritedRangeValues);
+
+      // Subclass check for "new" candidates → may be specializations
+      const domainCandidates = domainAnalysis.filter(e => e.status === "new").map(e => e.value);
+      const rangeCandidates  = rangeAnalysis.filter(e => e.status === "new").map(e => e.value);
+      const allCandidates    = [...new Set([...domainCandidates, ...rangeCandidates])];
+      const allInherited     = [...new Set([...inheritedDomainValues, ...inheritedRangeValues])];
+
+      if (allCandidates.length > 0 && allInherited.length > 0) {
+        const vSub = allCandidates.map(u => `<${u}>`).join(" ");
+        const vSup = allInherited.map(u => `<${u}>`).join(" ");
+        const subResult = await executeSparql(`
+          SELECT ?sub ?sup WHERE {
+            VALUES ?sub { ${vSub} }
+            VALUES ?sup { ${vSup} }
+            ?sub rdfs:subClassOf+ ?sup .
+          }
+        `);
+        const subMap = new Map<string, string[]>();
+        for (const b of subResult.results?.bindings ?? []) {
+          const sub = b.sub?.value ?? "", sup = b.sup?.value ?? "";
+          if (!sub || !sup) continue;
+          if (!subMap.has(sub)) subMap.set(sub, []);
+          subMap.get(sub)!.push(sup);
+        }
+        const upgrade = (entries: AnalysisEntry[], inheritedValues: Set<string>): AnalysisEntry[] =>
+          entries.map(e => {
+            if (e.status !== "new") return e;
+            const supers = (subMap.get(e.value) ?? []).filter(s => inheritedValues.has(s));
+            return supers.length > 0 ? { value: e.value, status: "specialization" as const, specializes: supers } : e;
+          });
+        domainAnalysis = upgrade(domainAnalysis, inheritedDomainValues);
+        rangeAnalysis  = upgrade(rangeAnalysis,  inheritedRangeValues);
+      }
+
+      const count = (entries: AnalysisEntry[], s: string) => entries.filter(e => e.status === s).length;
+      const redundancy_analysis = {
+        domain: domainAnalysis,
+        range:  rangeAnalysis,
+        summary: {
+          domain_redundant:      count(domainAnalysis, "redundant"),
+          domain_specialization: count(domainAnalysis, "specialization"),
+          domain_new:            count(domainAnalysis, "new"),
+          range_redundant:       count(rangeAnalysis,  "redundant"),
+          range_specialization:  count(rangeAnalysis,  "specialization"),
+          range_new:             count(rangeAnalysis,  "new"),
+        },
+      };
+
       const totalRows =
         (defResult.results?.bindings?.length ?? 0) +
         (superResult.results?.bindings?.length ?? 0);
@@ -210,6 +282,7 @@ server.registerTool(
           inheritedRange,
           effectiveDomain,
           effectiveRange,
+          redundancy_analysis,
         },
         rowCount: totalRows,
       };
