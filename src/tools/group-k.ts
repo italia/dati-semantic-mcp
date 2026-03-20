@@ -148,29 +148,39 @@ server.registerTool(
   "inspect_local_concept",
   {
     title: "Inspect Concept in Local / Uploaded Ontology",
-    description: `Get a full profile of a class or concept from a local or uploaded ontology, including the complete inherited property chain.
+    description: `Get a full profile of a class or concept from a local or uploaded ontology.
 
 **Args (provide exactly one of file_path or upload_id):**
 - uri: URI of the class/concept to inspect
 - file_path: Absolute path on the MCP server filesystem
 - upload_id: UUID returned by POST /upload (HTTP/remote mode)
+- mode: "raw" | "effective" (default: "effective")
 
-**Returns:**
-- definition: Literal annotations of the concept (rdfs:label, rdfs:comment, skos:definition…)
-- hierarchy: Direct type, parent classes (rdfs:subClassOf / skos:broader), and child classes
-- usage: Count of instances typed as this class in the store
-- own_properties: Properties whose rdfs:domain is exactly this class
-- inherited_properties: Properties inherited from ancestor classes via rdfs:subClassOf+ / skos:broader+, each annotated with the ancestor it comes from — gives the complete effective property set
-- incoming: Properties whose values are instances of this type (data-level)
-- outgoing: Properties used by instances of this type (data-level)
+**mode: "raw"** — only triples explicitly present in the local file:
+- definition, hierarchy, usage, own_properties (rdfs:domain asserted directly on this class)
+- No ancestor traversal, no incoming/outgoing
 
-**Why this matters:** oxigraph (the local SPARQL engine) does not perform automatic RDFS inference. A plain \`?prop rdfs:domain <class>\` query will miss properties declared on parent classes. This tool traverses the ancestry explicitly using SPARQL property paths (rdfs:subClassOf+) so the result reflects the full OWL/RDFS semantics.
+**mode: "effective"** (default) — full OWL/RDFS-implied view:
+- All raw sections, plus:
+- inherited_properties: properties from superclasses via rdfs:subClassOf+/skos:broader+, each annotated with the ancestor that declares them
+- incoming / outgoing: data-level relations via instances
 
-**Use when:** You uploaded an ontology and want to understand what a specific class really models, including everything it inherits.`,
+**Distinguishing own vs inherited:**
+- own_properties = rdfs:domain explicitly written as this class in the local file
+- inherited_properties = rdfs:domain written on an ancestor class (traversed via property paths)
+- Properties applicable only via owl:restriction or anonymous class expressions are NOT shown — use query_local_ontology for those
+
+**Limitation with owl:imports:** inherited_properties traverses only superclasses present in the local file. Classes from imported external ontologies (e.g. l0:, COV:, CPV:) are absent from the local store unless the file includes them. For complete property semantics of a property that subPropertyOf an external one, use inspect_local_property instead — it falls back to schema.gov.it for missing super-properties.
+
+**Unicode SPARQL note:** oxigraph rejects prefixed names with non-ASCII local parts (e.g. \`myont:modalità_cup\`). Always use full URIs in angle brackets (\`<https://...#modalità_cup>\`) for properties or classes with Unicode in the local name.`,
     inputSchema: {
       uri: z.string().describe("URI of the class or concept to inspect"),
       file_path: z.string().optional().describe("Absolute path to the ontology file on the server filesystem"),
       upload_id: z.string().optional().describe("Upload UUID returned by POST /upload (HTTP mode)"),
+      mode: z.enum(["raw", "effective"]).optional().default("effective").describe(
+        '"raw": only asserted triples (own_properties, no ancestor traversal). ' +
+        '"effective" (default): adds inherited_properties via rdfs:subClassOf+/skos:broader+ and data-level incoming/outgoing.'
+      ),
     },
     annotations: {
       readOnlyHint: true,
@@ -179,11 +189,11 @@ server.registerTool(
       openWorldHint: false,
     },
   },
-  async ({ uri, file_path, upload_id }) => {
-    return executeTool("inspect_local_concept", { uri, file_path, upload_id }, async () => {
+  async ({ uri, file_path, upload_id, mode }) => {
+    return executeTool("inspect_local_concept", { uri, file_path, upload_id, mode }, async () => {
       const { store } = await resolveLocalStore(file_path, undefined, undefined, upload_id);
 
-      const queries: Record<string, string> = {
+      const baseQueries: Record<string, string> = {
         definition: `
           SELECT ?p ?o WHERE { <${uri}> ?p ?o . FILTER(ISLITERAL(?o)) }
         `,
@@ -214,6 +224,9 @@ server.registerTool(
           ORDER BY ?prop
           LIMIT 50
         `,
+      };
+
+      const effectiveOnlyQueries: Record<string, string> = {
         inherited_properties: `
           SELECT DISTINCT ?ancestor ?ancestorLabel ?prop ?propType ?propLabel ?range ?rangeLabel WHERE {
             <${uri}> rdfs:subClassOf+|skos:broader+ ?ancestor .
@@ -244,6 +257,10 @@ server.registerTool(
         `,
       };
 
+      const queries = mode === "raw"
+        ? baseQueries
+        : { ...baseQueries, ...effectiveOnlyQueries };
+
       const results: Record<string, unknown> = {};
       let totalRows = 0;
       for (const [key, q] of Object.entries(queries)) {
@@ -252,7 +269,200 @@ server.registerTool(
         totalRows += r.results.bindings.length;
       }
 
-      return { success: true, data: results, rowCount: totalRows };
+      return {
+        success: true,
+        data: {
+          mode,
+          ...(mode === "effective" ? {
+            note: "inherited_properties covers only superclasses present in the local file. For properties from external imported ontologies, use inspect_local_property which falls back to schema.gov.it."
+          } : {}),
+          ...results,
+        },
+        rowCount: totalRows,
+      };
+    });
+  }
+);
+
+server.registerTool(
+  "inspect_local_property",
+  {
+    title: "Inspect Property in Local / Uploaded Ontology",
+    description: `Get the full semantic profile of a property from a local or uploaded ontology, resolving inherited domain and range via rdfs:subPropertyOf+.
+
+**Args (provide exactly one of file_path or upload_id):**
+- uri: URI of the property to inspect
+- file_path: Absolute path on the MCP server filesystem
+- upload_id: UUID returned by POST /upload (HTTP mode)
+
+**Returns:**
+- definition: direct attributes from the local store (type, label, comment, subPropertyOf, inverseOf, functional flags)
+- assertedDomain: rdfs:domain declared directly on this property in the local file
+- assertedRange: rdfs:range declared directly on this property in the local file
+- superproperties: ancestor chain via rdfs:subPropertyOf+; each entry has source:
+  - "local" = found in the local store
+  - "remote" = not in local file, resolved from schema.gov.it
+  - "not-found" = absent from both
+- inheritedDomain: domain values collected from super-properties, each annotated with ancestor URI and source
+- inheritedRange: range values collected from super-properties, each annotated with ancestor URI and source
+- effectiveDomain: deduplicated union of assertedDomain + inheritedDomain
+- effectiveRange: deduplicated union of assertedRange + inheritedRange
+- warnings: super-properties not resolved, remote lookup failures
+
+**owl:imports handling:** The local store typically does NOT contain imported ontologies (owl:imports declarations are not followed automatically). Super-properties from external namespaces (e.g. l0:name, l0:description from OntoPiA) are resolved against schema.gov.it automatically, making the effective semantics complete without requiring the full import chain to be loaded.
+
+**Use case — subproperty chains:** For properties like \`ha_cup_collegato_per_fusione rdfs:subPropertyOf ha_cup_collegato\`, this tool shows whether domain/range are asserted directly, inherited from \`ha_cup_collegato\`, or need remote resolution. For \`subPropertyOf l0:name\`, it fetches l0:name's domain/range from schema.gov.it and shows it as source "remote".
+
+**Unicode SPARQL note:** oxigraph rejects prefixed names with non-ASCII local parts. For properties with Unicode in the local name (e.g. \`myont:modalità_cup\`), always pass the full URI in angle brackets (\`<https://...#modalità_cup>\`).`,
+    inputSchema: {
+      uri: z.string().describe("URI of the property to inspect"),
+      file_path: z.string().optional().describe("Absolute path to the ontology file on the server filesystem"),
+      upload_id: z.string().optional().describe("Upload UUID returned by POST /upload (HTTP mode)"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ uri, file_path, upload_id }) => {
+    return executeTool("inspect_local_property", { uri, file_path, upload_id }, async () => {
+      const { store } = await resolveLocalStore(file_path, undefined, undefined, upload_id);
+
+      // 1. Direct attributes
+      const defResult = runLocalSparql(store, `
+        SELECT ?p ?o WHERE {
+          <${uri}> ?p ?o .
+          FILTER(?p IN (
+            rdf:type, rdfs:label, rdfs:comment,
+            rdfs:domain, rdfs:range, rdfs:subPropertyOf,
+            owl:inverseOf, owl:equivalentProperty
+          ) || (?p = rdf:type && ?o IN (
+            owl:FunctionalProperty, owl:InverseFunctionalProperty,
+            owl:SymmetricProperty, owl:TransitiveProperty
+          )))
+        }
+      `, true);
+
+      // 2. Asserted domain / range
+      const RDFS_DOMAIN = "http://www.w3.org/2000/01/rdf-schema#domain";
+      const RDFS_RANGE  = "http://www.w3.org/2000/01/rdf-schema#range";
+      const assertedDomain: string[] = [];
+      const assertedRange:  string[] = [];
+      for (const b of defResult.results.bindings) {
+        if (b.p?.value === RDFS_DOMAIN && b.o?.value) assertedDomain.push(b.o.value);
+        if (b.p?.value === RDFS_RANGE  && b.o?.value) assertedRange.push(b.o.value);
+      }
+
+      // 3. Super-property chain with local domain/range (one query)
+      const superResult = runLocalSparql(store, `
+        SELECT DISTINCT ?ancestor ?ancestorLabel ?domain ?range WHERE {
+          <${uri}> rdfs:subPropertyOf+ ?ancestor .
+          FILTER(isIRI(?ancestor))
+          OPTIONAL { ?ancestor rdfs:label ?ancestorLabel . FILTER(LANG(?ancestorLabel) = "" || LANG(?ancestorLabel) = "it") }
+          OPTIONAL { ?ancestor rdfs:domain ?domain }
+          OPTIONAL { ?ancestor rdfs:range ?range }
+        }
+        ORDER BY ?ancestor
+      `, true);
+
+      type SuperInfo = {
+        uri: string;
+        label: string;
+        localDomains: string[];
+        localRanges: string[];
+        source: "local" | "remote" | "not-found";
+      };
+
+      const superMap = new Map<string, SuperInfo>();
+      for (const b of superResult.results.bindings) {
+        const aUri = b.ancestor?.value ?? "";
+        if (!aUri) continue;
+        if (!superMap.has(aUri)) {
+          superMap.set(aUri, { uri: aUri, label: "", localDomains: [], localRanges: [], source: "local" });
+        }
+        const info = superMap.get(aUri)!;
+        if (b.ancestorLabel?.value && !info.label) info.label = b.ancestorLabel.value;
+        if (b.domain?.value && !info.localDomains.includes(b.domain.value)) info.localDomains.push(b.domain.value);
+        if (b.range?.value  && !info.localRanges.includes(b.range.value))   info.localRanges.push(b.range.value);
+      }
+
+      // 4. For super-properties with no local domain/range, fall back to schema.gov.it
+      const warnings: string[] = [];
+      const needsRemote = [...superMap.values()].filter(
+        info => info.localDomains.length === 0 && info.localRanges.length === 0
+      );
+
+      if (needsRemote.length > 0) {
+        const valuesClause = needsRemote.map(info => `<${info.uri}>`).join(" ");
+        try {
+          const remoteResult = await executeSparql(`
+            SELECT DISTINCT ?ancestor ?ancestorLabel ?domain ?range WHERE {
+              VALUES ?ancestor { ${valuesClause} }
+              OPTIONAL { ?ancestor rdfs:label ?ancestorLabel . FILTER(LANG(?ancestorLabel) = "" || LANG(?ancestorLabel) = "it") }
+              OPTIONAL { ?ancestor rdfs:domain ?domain }
+              OPTIONAL { ?ancestor rdfs:range ?range }
+            }
+          `);
+          const remoteFound = new Set<string>();
+          for (const b of remoteResult.results?.bindings ?? []) {
+            const aUri = b.ancestor?.value ?? "";
+            if (!aUri) continue;
+            remoteFound.add(aUri);
+            const info = superMap.get(aUri) ?? { uri: aUri, label: "", localDomains: [], localRanges: [], source: "remote" as const };
+            if (!superMap.has(aUri)) superMap.set(aUri, info);
+            if (b.ancestorLabel?.value && !info.label) info.label = b.ancestorLabel.value;
+            if (b.domain?.value && !info.localDomains.includes(b.domain.value)) info.localDomains.push(b.domain.value);
+            if (b.range?.value  && !info.localRanges.includes(b.range.value))   info.localRanges.push(b.range.value);
+            info.source = "remote";
+          }
+          for (const info of needsRemote) {
+            if (!remoteFound.has(info.uri)) {
+              superMap.get(info.uri)!.source = "not-found";
+              warnings.push(`<${info.uri}> not found in local store or schema.gov.it — domain/range unknown.`);
+            }
+          }
+        } catch (e) {
+          warnings.push(`Remote lookup failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+
+      // 5. Build inherited lists
+      const inheritedDomain: Array<{ ancestor: string; ancestorLabel: string; domain: string; source: string }> = [];
+      const inheritedRange:  Array<{ ancestor: string; ancestorLabel: string; range:  string; source: string }> = [];
+      for (const info of superMap.values()) {
+        for (const d of info.localDomains) inheritedDomain.push({ ancestor: info.uri, ancestorLabel: info.label, domain: d, source: info.source });
+        for (const r of info.localRanges)  inheritedRange.push({ ancestor:  info.uri, ancestorLabel: info.label, range:  r, source: info.source });
+      }
+
+      // 6. Effective = deduplicated union
+      const effectiveDomain = [...new Set([...assertedDomain, ...inheritedDomain.map(x => x.domain)])];
+      const effectiveRange  = [...new Set([...assertedRange,  ...inheritedRange.map(x => x.range)])];
+
+      const superproperties = [...superMap.values()].map(info => ({
+        uri: info.uri,
+        label: info.label,
+        source: info.source,
+        hasDomainLocally: info.localDomains.length > 0,
+        hasRangeLocally:  info.localRanges.length  > 0,
+      }));
+
+      return {
+        success: true,
+        data: {
+          definition: compressSparqlResult(defResult),
+          assertedDomain,
+          assertedRange,
+          superproperties,
+          inheritedDomain,
+          inheritedRange,
+          effectiveDomain,
+          effectiveRange,
+          ...(warnings.length > 0 ? { warnings } : {}),
+        },
+        rowCount: defResult.results.bindings.length + superResult.results.bindings.length,
+      };
     });
   }
 );
