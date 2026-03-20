@@ -66,6 +66,7 @@ Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il
 
 ### 10. Ontologia Locale
 *   `inspect_local_ontology`: Carica e riassume un'ontologia RDF/OWL disponibile al server via `file_path`, contenuto inline o `upload_id`. Attenzione: `file_path` indica sempre un path leggibile dal server MCP, non dal laptop dell'utente.
+*   `inspect_local_concept`: **Deep dive con ereditarietà** su una classe o concetto in un'ontologia locale o caricata. Restituisce definizione, gerarchia, proprietà dirette (`own_properties`) e proprietà ereditate dagli antenati (`inherited_properties`, con indicazione dell'antenato di provenienza). oxigraph non fa inferenza RDFS automatica: questo tool traversa esplicitamente la catena `rdfs:subClassOf+` / `skos:broader+` per restituire il profilo completo.
 *   `query_local_ontology`: Esegue una query SPARQL SELECT su un'ontologia accessibile dal server o caricata prima via `POST /upload`. Prefissi standard iniettati automaticamente. Risultati compressi come gli altri tool.
 *   `compare_local_with_remote`: Confronta le classi/proprietà definite in un'ontologia accessibile dal server o via `upload_id` con quelle presenti in schema.gov.it — utile per scoprire cosa riusare o allineare.
 
@@ -290,6 +291,36 @@ Una volta configurato, puoi chiedere all'agente cose come:
 *   *"La classe Person di CPV ha equivalenti riconosciuti a livello internazionale?"* (Userà `find_okg_alignments`)
 *   *"Quali tool open source posso usare per lavorare con SKOS e OWL?"* (Userà `find_semantic_software`)
 *   *"Cosa manca a schema.gov.it rispetto agli standard semantici internazionali del settore pubblico?"* (Userà `compare_coverage_with_okg`)
+
+## Variabili d'Ambiente
+
+| Variabile | Default | Descrizione |
+|---|---|---|
+| `MCP_TRANSPORT` | `stdio` | Modalità di trasporto. Usa `http` o `sse` per avviare il server HTTP (obbligatorio per l'upload e per l'uso remoto). |
+| `PORT` | `3000` | Porta su cui il server HTTP si mette in ascolto (solo in modalità `http`/`sse`). |
+| `HOST` | `0.0.0.0` | Indirizzo di bind del server HTTP. Usa `127.0.0.1` per limitare l'accesso al solo localhost. |
+| `MCP_PUBLIC_URL` | _(non impostato)_ | URL esterno del server, usato dal tool `get_upload_instructions` per restituire l'endpoint di upload raggiungibile dal client. Necessario quando la porta interna differisce da quella esposta (Docker, reverse proxy). Esempio: `http://localhost:8080`. |
+
+**Esempi:**
+
+```bash
+# Avvio locale su porta 3000 con upload abilitato
+MCP_TRANSPORT=http node dist/index.js
+
+# Porta personalizzata
+MCP_TRANSPORT=http PORT=8080 node dist/index.js
+
+# Docker con port mapping 8080→3000 (porta interna 3000, esposta 8080)
+docker run -d \
+  -e MCP_TRANSPORT=http \
+  -e MCP_PUBLIC_URL=http://localhost:8080 \
+  -p 8080:3000 \
+  ghcr.io/italia/dati-semantic-mcp:latest
+```
+
+> **Nota upload:** La porta HTTP (e di conseguenza `/upload`) è disponibile **solo** in modalità `http` o `sse`. In modalità `stdio` il server non espone nessuna porta; per passare file RDF usa il parametro `content` di `inspect_local_ontology` per file piccoli, oppure attiva la modalità HTTP.
+
+---
 
 ## Note Tecniche
 
