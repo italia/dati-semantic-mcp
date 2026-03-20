@@ -81,19 +81,22 @@ server.registerTool(
   "inspect_concept",
   {
     title: "Inspect Concept",
-    description: `Get a comprehensive profile of a concept.
+    description: `Get a comprehensive profile of a concept, including full inherited property chain.
 
 **Args:**
 - uri: URI of the concept to inspect
 
 **Returns:**
 - definition: Literal properties of the concept
-- hierarchy: Type, parents (superclasses), and children (subclasses)
+- hierarchy: Type, direct parents (superclasses/broader), and children (subclasses/narrower)
 - usage: Instance count
-- incoming: Properties pointing to instances of this type
-- outgoing: Properties used by instances of this type
+- own_properties: Properties whose rdfs:domain is exactly this class (schema-level, declared directly on this class)
+- inherited_properties: Properties inherited from ancestor classes via rdfs:subClassOf+/skos:broader+, each annotated with the ancestor it comes from
+- incoming: Properties pointing to instances of this type (data-level)
+- outgoing: Properties used by instances of this type (data-level)
 
-**Note:** All 5 queries run in parallel for performance.`,
+**Note:** own_properties + inherited_properties give the full effective property set of the class.
+All queries run in parallel for performance.`,
     inputSchema: {
       uri: z.string().describe("The URI of the concept to inspect"),
     },
@@ -111,16 +114,45 @@ server.registerTool(
         SELECT ?p ?o WHERE { <${safeUri}> ?p ?o . FILTER(ISLITERAL(?o)) }
       `,
       hierarchy: `
-        SELECT ?type ?parent ?child WHERE {
+        SELECT ?type ?parent ?parentLabel ?child ?childLabel WHERE {
           { <${safeUri}> a ?type }
           UNION
-          { <${safeUri}> rdfs:subClassOf|skos:broader ?parent }
+          { <${safeUri}> rdfs:subClassOf|skos:broader ?parent .
+            OPTIONAL { ?parent rdfs:label|skos:prefLabel ?parentLabel . FILTER(LANG(?parentLabel) = "it" || LANG(?parentLabel) = "") }
+          }
           UNION
-          { ?child rdfs:subClassOf|skos:broader <${safeUri}> }
+          { ?child rdfs:subClassOf|skos:broader <${safeUri}> .
+            OPTIONAL { ?child rdfs:label|skos:prefLabel ?childLabel . FILTER(LANG(?childLabel) = "it" || LANG(?childLabel) = "") }
+          }
         } LIMIT 50
       `,
       usage: `
         SELECT (COUNT(?s) as ?instanceCount) WHERE { ?s a <${safeUri}> }
+      `,
+      own_properties: `
+        SELECT DISTINCT ?prop ?propType ?propLabel ?range ?rangeLabel WHERE {
+          ?prop rdfs:domain <${safeUri}> .
+          OPTIONAL { ?prop a ?propType . VALUES ?propType { owl:ObjectProperty owl:DatatypeProperty owl:AnnotationProperty } }
+          OPTIONAL { ?prop rdfs:label ?propLabel . FILTER(LANG(?propLabel) = "it" || LANG(?propLabel) = "") }
+          OPTIONAL { ?prop rdfs:range ?range }
+          OPTIONAL { ?range rdfs:label|skos:prefLabel ?rangeLabel . FILTER(LANG(?rangeLabel) = "it" || LANG(?rangeLabel) = "") }
+        }
+        ORDER BY ?prop
+        LIMIT 50
+      `,
+      inherited_properties: `
+        SELECT DISTINCT ?ancestor ?ancestorLabel ?prop ?propType ?propLabel ?range ?rangeLabel WHERE {
+          <${safeUri}> rdfs:subClassOf+|skos:broader+ ?ancestor .
+          FILTER(isIRI(?ancestor))
+          ?prop rdfs:domain ?ancestor .
+          OPTIONAL { ?prop a ?propType . VALUES ?propType { owl:ObjectProperty owl:DatatypeProperty owl:AnnotationProperty } }
+          OPTIONAL { ?prop rdfs:label ?propLabel . FILTER(LANG(?propLabel) = "it" || LANG(?propLabel) = "") }
+          OPTIONAL { ?prop rdfs:range ?range }
+          OPTIONAL { ?range rdfs:label|skos:prefLabel ?rangeLabel . FILTER(LANG(?rangeLabel) = "it" || LANG(?rangeLabel) = "") }
+          OPTIONAL { ?ancestor rdfs:label|skos:prefLabel ?ancestorLabel . FILTER(LANG(?ancestorLabel) = "it" || LANG(?ancestorLabel) = "") }
+        }
+        ORDER BY ?ancestor ?prop
+        LIMIT 100
       `,
       incoming: `
         SELECT DISTINCT ?p ?sType WHERE {
