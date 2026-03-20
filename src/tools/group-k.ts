@@ -145,6 +145,119 @@ server.registerTool(
 );
 
 server.registerTool(
+  "inspect_local_concept",
+  {
+    title: "Inspect Concept in Local / Uploaded Ontology",
+    description: `Get a full profile of a class or concept from a local or uploaded ontology, including the complete inherited property chain.
+
+**Args (provide exactly one of file_path or upload_id):**
+- uri: URI of the class/concept to inspect
+- file_path: Absolute path on the MCP server filesystem
+- upload_id: UUID returned by POST /upload (HTTP/remote mode)
+
+**Returns:**
+- definition: Literal annotations of the concept (rdfs:label, rdfs:comment, skos:definition…)
+- hierarchy: Direct type, parent classes (rdfs:subClassOf / skos:broader), and child classes
+- usage: Count of instances typed as this class in the store
+- own_properties: Properties whose rdfs:domain is exactly this class
+- inherited_properties: Properties inherited from ancestor classes via rdfs:subClassOf+ / skos:broader+, each annotated with the ancestor it comes from — gives the complete effective property set
+- incoming: Properties whose values are instances of this type (data-level)
+- outgoing: Properties used by instances of this type (data-level)
+
+**Why this matters:** oxigraph (the local SPARQL engine) does not perform automatic RDFS inference. A plain \`?prop rdfs:domain <class>\` query will miss properties declared on parent classes. This tool traverses the ancestry explicitly using SPARQL property paths (rdfs:subClassOf+) so the result reflects the full OWL/RDFS semantics.
+
+**Use when:** You uploaded an ontology and want to understand what a specific class really models, including everything it inherits.`,
+    inputSchema: {
+      uri: z.string().describe("URI of the class or concept to inspect"),
+      file_path: z.string().optional().describe("Absolute path to the ontology file on the server filesystem"),
+      upload_id: z.string().optional().describe("Upload UUID returned by POST /upload (HTTP mode)"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  async ({ uri, file_path, upload_id }) => {
+    return executeTool("inspect_local_concept", { uri, file_path, upload_id }, async () => {
+      const { store } = await resolveLocalStore(file_path, undefined, undefined, upload_id);
+
+      const queries: Record<string, string> = {
+        definition: `
+          SELECT ?p ?o WHERE { <${uri}> ?p ?o . FILTER(ISLITERAL(?o)) }
+        `,
+        hierarchy: `
+          SELECT ?type ?parent ?parentLabel ?child ?childLabel WHERE {
+            { <${uri}> a ?type }
+            UNION
+            { <${uri}> rdfs:subClassOf|skos:broader ?parent .
+              OPTIONAL { ?parent rdfs:label|skos:prefLabel ?parentLabel . FILTER(LANG(?parentLabel) = "it" || LANG(?parentLabel) = "") }
+            }
+            UNION
+            { ?child rdfs:subClassOf|skos:broader <${uri}> .
+              OPTIONAL { ?child rdfs:label|skos:prefLabel ?childLabel . FILTER(LANG(?childLabel) = "it" || LANG(?childLabel) = "") }
+            }
+          } LIMIT 50
+        `,
+        usage: `
+          SELECT (COUNT(?s) AS ?instanceCount) WHERE { ?s a <${uri}> }
+        `,
+        own_properties: `
+          SELECT DISTINCT ?prop ?propType ?propLabel ?range ?rangeLabel WHERE {
+            ?prop rdfs:domain <${uri}> .
+            OPTIONAL { ?prop a ?propType . VALUES ?propType { owl:ObjectProperty owl:DatatypeProperty owl:AnnotationProperty } }
+            OPTIONAL { ?prop rdfs:label ?propLabel . FILTER(LANG(?propLabel) = "it" || LANG(?propLabel) = "") }
+            OPTIONAL { ?prop rdfs:range ?range }
+            OPTIONAL { ?range rdfs:label|skos:prefLabel ?rangeLabel . FILTER(LANG(?rangeLabel) = "it" || LANG(?rangeLabel) = "") }
+          }
+          ORDER BY ?prop
+          LIMIT 50
+        `,
+        inherited_properties: `
+          SELECT DISTINCT ?ancestor ?ancestorLabel ?prop ?propType ?propLabel ?range ?rangeLabel WHERE {
+            <${uri}> rdfs:subClassOf+|skos:broader+ ?ancestor .
+            FILTER(isIRI(?ancestor))
+            ?prop rdfs:domain ?ancestor .
+            OPTIONAL { ?prop a ?propType . VALUES ?propType { owl:ObjectProperty owl:DatatypeProperty owl:AnnotationProperty } }
+            OPTIONAL { ?prop rdfs:label ?propLabel . FILTER(LANG(?propLabel) = "it" || LANG(?propLabel) = "") }
+            OPTIONAL { ?prop rdfs:range ?range }
+            OPTIONAL { ?range rdfs:label|skos:prefLabel ?rangeLabel . FILTER(LANG(?rangeLabel) = "it" || LANG(?rangeLabel) = "") }
+            OPTIONAL { ?ancestor rdfs:label|skos:prefLabel ?ancestorLabel . FILTER(LANG(?ancestorLabel) = "it" || LANG(?ancestorLabel) = "") }
+          }
+          ORDER BY ?ancestor ?prop
+          LIMIT 100
+        `,
+        incoming: `
+          SELECT DISTINCT ?p ?sType WHERE {
+            ?s ?p ?o .
+            ?o a <${uri}> .
+            OPTIONAL { ?s a ?sType }
+          } LIMIT 20
+        `,
+        outgoing: `
+          SELECT DISTINCT ?p ?oType WHERE {
+            ?s a <${uri}> .
+            ?s ?p ?o .
+            OPTIONAL { ?o a ?oType }
+          } LIMIT 20
+        `,
+      };
+
+      const results: Record<string, unknown> = {};
+      let totalRows = 0;
+      for (const [key, q] of Object.entries(queries)) {
+        const r = runLocalSparql(store, q, true);
+        results[key] = compressSparqlResult(r);
+        totalRows += r.results.bindings.length;
+      }
+
+      return { success: true, data: results, rowCount: totalRows };
+    });
+  }
+);
+
+server.registerTool(
   "compare_local_with_remote",
   {
     title: "Compare Local Ontology with schema.gov.it",
