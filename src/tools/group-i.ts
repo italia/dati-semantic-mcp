@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { executeTool, executeSparqlTool } from "../executor.js";
-import { sanitizeSparqlString, executeSparql, compressSparqlResult } from "../sparql.js";
+import { sanitizeSparqlString, executeSparql, compressSparqlResult, buildLangFilter } from "../sparql.js";
 
 // -----------------------------------------------------------------------------
 // GROUP I: OntoPiA Territorial Tools
@@ -177,6 +177,7 @@ server.registerTool(
 - offset: Items to skip (default: 0)
 - keyword: (optional) Filter by name (case-insensitive)
 - withBelfiore: (optional) If true, include Belfiore/cadastral codes via URI extraction (slower)
+- lang: "it" | "en" | "any" (default: "any")
 
 **Returns:**
 - municipalities: List of cities with ISTAT code, name, and optionally Belfiore code
@@ -189,6 +190,7 @@ Each ISTAT code may appear with multiple historical names; results are deduplica
       offset: z.number().optional().default(0).describe("Items to skip"),
       keyword: z.string().optional().describe("Filter by municipality name"),
       withBelfiore: z.boolean().optional().default(false).describe("Include Belfiore/cadastral codes"),
+      lang: z.enum(["it", "en", "any"]).optional().default("any").describe('Preferred name language; "any" keeps all languages.'),
     },
     annotations: {
       readOnlyHint: true,
@@ -197,8 +199,9 @@ Each ISTAT code may appear with multiple historical names; results are deduplica
       openWorldHint: true,
     },
   },
-  async ({ limit, offset, keyword, withBelfiore }) => {
+  async ({ limit, offset, keyword, withBelfiore, lang }) => {
     const safeLimit = Math.min(limit, 500);
+    const nameLangFilter = buildLangFilter("?name", lang);
     const keywordFilter = keyword
       ? `FILTER(REGEX(?name, "${sanitizeSparqlString(keyword)}", "i"))`
       : "";
@@ -211,6 +214,7 @@ Each ISTAT code may appear with multiple historical names; results are deduplica
           ?city a clv:City ;
                 skos:notation ?notation ;
                 l0:name ?name .
+          ${nameLangFilter}
           ${keywordFilter}
         }
         ORDER BY ?notation
@@ -233,11 +237,11 @@ Each ISTAT code may appear with multiple historical names; results are deduplica
         SELECT (COUNT(DISTINCT ?notation) AS ?total)
         WHERE {
           ?city a clv:City ; skos:notation ?notation .
-          ${keyword ? `?city l0:name ?name . ${keywordFilter}` : ""}
+          ${keyword ? `?city l0:name ?name . ${nameLangFilter} ${keywordFilter}` : ""}
         }
       `;
 
-      return executeTool("list_municipalities", { limit: safeLimit, offset, keyword, withBelfiore }, async () => {
+      return executeTool("list_municipalities", { limit: safeLimit, offset, keyword, withBelfiore, lang }, async () => {
         const [namesResult, belfioreResult, countResult] = await Promise.all([
           executeSparql(namesQuery),
           executeSparql(belfioreQuery),
@@ -294,6 +298,7 @@ Each ISTAT code may appear with multiple historical names; results are deduplica
         ?city a clv:City ;
               skos:notation ?notation ;
               l0:name ?name .
+        ${nameLangFilter}
         ${keywordFilter}
       }
       ORDER BY ?notation
@@ -304,11 +309,11 @@ Each ISTAT code may appear with multiple historical names; results are deduplica
       SELECT (COUNT(DISTINCT ?notation) AS ?total)
       WHERE {
         ?city a clv:City ; skos:notation ?notation .
-        ${keyword ? `?city l0:name ?name . ${keywordFilter}` : ""}
+        ${keyword ? `?city l0:name ?name . ${nameLangFilter} ${keywordFilter}` : ""}
       }
     `;
 
-    return executeTool("list_municipalities", { limit: safeLimit, offset, keyword, withBelfiore }, async () => {
+    return executeTool("list_municipalities", { limit: safeLimit, offset, keyword, withBelfiore, lang }, async () => {
       const [dataResult, countResult] = await Promise.all([
         executeSparql(dataQuery),
         executeSparql(countQuery),
@@ -339,6 +344,7 @@ server.registerTool(
 
 **Args:**
 - keyword: (optional) Filter by province name (case-insensitive)
+- lang: "it" | "en" | "any" (default: "any")
 
 **Returns:**
 - List of provinces with notation (ISTAT code), name, sigla (car plate), and metro code (if metropolitan city)
@@ -347,6 +353,7 @@ server.registerTool(
 There are ~107 provinces, 14 of which are metropolitan cities.`,
     inputSchema: {
       keyword: z.string().optional().describe("Filter by province name"),
+      lang: z.enum(["it", "en", "any"]).optional().default("any").describe('Preferred name language; "any" keeps all languages.'),
     },
     annotations: {
       readOnlyHint: true,
@@ -355,7 +362,8 @@ There are ~107 provinces, 14 of which are metropolitan cities.`,
       openWorldHint: true,
     },
   },
-  async ({ keyword }) => {
+  async ({ keyword, lang }) => {
+    const nameLangFilter = buildLangFilter("?name", lang);
     const keywordFilter = keyword
       ? `FILTER(REGEX(?name, "${sanitizeSparqlString(keyword)}", "i"))`
       : "";
@@ -366,6 +374,7 @@ There are ~107 provinces, 14 of which are metropolitan cities.`,
         ?prov a clv:Province ;
               skos:notation ?notation ;
               l0:name ?name .
+        ${nameLangFilter}
         ${keywordFilter}
       }
       ORDER BY ?notation
@@ -391,7 +400,7 @@ There are ~107 provinces, 14 of which are metropolitan cities.`,
       ORDER BY ?notation
     `;
 
-    return executeTool("list_provinces", { keyword }, async () => {
+    return executeTool("list_provinces", { keyword, lang }, async () => {
       const [namesResult, siglaResult, metroResult] = await Promise.all([
         executeSparql(namesQuery),
         executeSparql(siglaQuery),

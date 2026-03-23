@@ -194,52 +194,52 @@ Nota implementativa completata:
 
 Obiettivo: l'ontologia locale deve poter essere analizzata "come se" fosse già dentro `schema.gov.it`, almeno nei tool specializzati dove ciò è tecnicamente sostenibile.
 
-- [ ] Disegnare un contesto comune per i tool core:
+- [x] Disegnare un contesto comune per i tool core:
   - `source: "schema" | "local" | "hybrid"`
   - `file_path?`, `upload_id?`, `content?` dove rilevante
-- [ ] Portare progressivamente `inspect_concept`, `get_property_details`, `query_sparql` verso un'interfaccia context-aware, mantenendo i tool legacy come alias compatibili nel breve periodo
-- [ ] Implementare `hybrid` almeno per i tool specializzati su concetti e proprietà:
+- [x] Portare progressivamente `inspect_concept`, `get_property_details`, `query_sparql` verso un'interfaccia context-aware, mantenendo i tool legacy come alias compatibili nel breve periodo
+- [x] Implementare `hybrid` almeno per i tool specializzati su concetti e proprietà:
   - base = store locale/uploaded
   - arricchimento/fallback = `schema.gov.it` per import, super-classi, super-proprietà, label e range mancanti
-- [ ] Esplicitare nel piano che `query_sparql` ibrido raw non va promesso finché non esiste davvero un grafo unificato o una risoluzione affidabile degli `owl:imports`
+- [x] Esplicitare nel piano che `query_sparql` ibrido raw non va promesso finché non esiste davvero un grafo unificato o una risoluzione affidabile degli `owl:imports`
 - [ ] Valutare una modalità `with_imports` in `resolveLocalStore` per caricare/cache delle ontologie importate quando reperibili
 
 ### 5.5 Deprecazione `search_in_vocabulary`
 **Effort: Basso | Net: -1 tool primario**
 
 `browse_vocabulary` già supporta `keyword` (filtro testuale) + paginazione. `search_in_vocabulary` è un sottoinsieme.
-- [ ] Aggiungere alla descrizione di `search_in_vocabulary`: _"Deprecated. Usa `browse_vocabulary` con il parametro `keyword`."_
-- [ ] Tenerlo come alias di compatibilità per una release
-- [ ] Rimuoverlo dalla documentazione principale e dagli esempi consigliati
+- [x] Aggiungere alla descrizione di `search_in_vocabulary`: _"Deprecated. Usa `browse_vocabulary` con il parametro `keyword`."_
+- [x] Tenerlo come alias di compatibilità per una release
+- [x] Rimuoverlo dalla documentazione principale e dagli esempi consigliati
 
 ### 5.6 Parametro `lang` sui tool che restituiscono label
 **Effort: Medio | Impatto: Alto**
 
 Il catalogo ha etichette `@it` e `@en`; senza filtro linguistico i risultati hanno duplicati.
-- [ ] Aggiungere `lang?: "it" | "en" | "any"` (default `"any"`) a: `search_concepts`, `browse_vocabulary`, `search_in_vocabulary`, `inspect_concept`, `list_municipalities`, `list_provinces`
-- [ ] Implementare con `FILTER(LANG(?label) = "${lang}" || LANG(?label) = "")` quando `lang != "any"`
+- [x] Aggiungere `lang?: "it" | "en" | "any"` (default `"any"`) a: `search_concepts`, `browse_vocabulary`, `search_in_vocabulary`, `inspect_concept`, `list_municipalities`, `list_provinces`
+- [x] Implementare con `FILTER(LANG(?label) = "${lang}" || LANG(?label) = "")` quando `lang != "any"`
 
 ### 5.7 `find_relations` — profondità configurabile
 **Effort: Medio**
 
 Attualmente limitato a percorsi diretti + 1-hop. Relazioni a 2-3 hop sono frequenti nel catalogo.
-- [ ] Aggiungere `max_hops: 1 | 2 | 3` (default 1, backward-compatible)
-- [ ] Cap risultati a 20, aggiungere flag `paths_truncated`
+- [x] Aggiungere `max_hops: 1 | 2 | 3` (default 1, backward-compatible)
+- [x] Cap risultati a 20, aggiungere flag `paths_truncated`
 
 ### 5.8 `navigate_skos_hierarchy` — navigazione gerarchica SKOS
 **Effort: Medio | Nuovo tool in Group D**
 
 Nessun tool dedicato per risalire/scendere `skos:broader`/`skos:narrower`. Attualmente richiede `query_sparql` custom.
-- [ ] Parametri: `uri`, `direction: "up"|"down"|"both"`, `depth: 1..5`
-- [ ] Output: albero o lista flat con indicatori di profondità
-- [ ] Usare `skos:broader+`/`skos:narrower+` con property path SPARQL
+- [x] Parametri: `uri`, `direction: "up"|"down"|"both"`, `depth: 1..5`
+- [x] Output: albero o lista flat con indicatori di profondità
+- [x] Usare `skos:broader+`/`skos:narrower+` con property path SPARQL
 
 ### 5.9 Estendere `suggest_improvements`
 **Effort: Medio**
 
 Attualmente rileva solo classi inutilizzate e cicli di subClassOf.
-- [ ] Aggiungere: proprietà senza dominio o range
-- [ ] Aggiungere: classi con >1000 istanze ma senza skos:ConceptScheme (possibili vocabolari non modellati correttamente)
+- [x] Aggiungere: proprietà senza dominio o range
+- [x] Aggiungere: classi con >1000 istanze ma senza skos:ConceptScheme (possibili vocabolari non modellati correttamente)
 
 ---
 

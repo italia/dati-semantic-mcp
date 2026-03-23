@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { executeTool, executeSparqlTool } from "../executor.js";
-import { sanitizeSparqlUri, sanitizeSparqlString, executeSparql, compressSparqlResult } from "../sparql.js";
+import { sanitizeSparqlUri, sanitizeSparqlString, executeSparql, compressSparqlResult, runLocalSparql } from "../sparql.js";
 import {
   buildPropertyDefinitionQuery,
   buildPropertySuperQuery,
@@ -10,6 +10,7 @@ import {
   buildPropertyInheritance,
   buildRedundancyAnalysis,
 } from "../semantic-profiles.js";
+import { resolveSemanticContextStore } from "../semantic-context.js";
 
 // -----------------------------------------------------------------------------
 // GROUP G: Properties & Instances
@@ -83,6 +84,8 @@ server.registerTool(
 **Args:**
 - propertyUri: URI of the property
 - mode: "raw" | "effective" (default: "effective")
+- source: "schema" | "local" | "hybrid" (default: "schema")
+- file_path / content / upload_id: local context when source="local" or source="hybrid"
 
 **Tip:** Use \`search_concepts\` first if you do not know the URI.
 
@@ -109,6 +112,11 @@ server.registerTool(
 - Use redundancy_analysis.summary to immediately see if the local TTL has redundant axioms or genuine specializations
 - owl:equivalentProperty and owl:equivalentClass expansions are not included (use query_sparql for those)
 
+**Hybrid mode:**
+- source="hybrid" uses the local/uploaded ontology as the base graph
+- it enriches missing super-property semantics from schema.gov.it when a super-property URI is known locally but absent from the local store
+- it still does not build a generic unified graph or guarantee full owl:imports resolution
+
 **When to use this vs X:**
 - vs \`inspect_local_property\`: use this for a property already published in \`schema.gov.it\`; use \`inspect_local_property\` for a local/uploaded ontology
 - vs \`query_sparql\`: use this for the standard semantic profile of one property; use \`query_sparql\` only for custom questions not covered here`,
@@ -118,6 +126,11 @@ server.registerTool(
         '"raw": only asserted triples. ' +
         '"effective" (default): adds assertedDomain/Range, super-property chain, inheritedDomain/Range, effectiveDomain/Range.'
       ),
+      source: z.enum(["schema", "local", "hybrid"]).optional().default("schema").describe('Execution context: "schema" for schema.gov.it, "local" for a local/uploaded ontology, "hybrid" for local base + schema.gov.it enrichment.'),
+      file_path: z.string().optional().describe("Absolute path to a local ontology file when source='local' or 'hybrid'"),
+      content: z.string().optional().describe("Inline RDF content when source='local' or 'hybrid'"),
+      format: z.string().optional().describe("RDF content type for inline content"),
+      upload_id: z.string().optional().describe("Uploaded ontology store ID when source='local' or 'hybrid'"),
     },
     annotations: {
       readOnlyHint: true,
@@ -126,25 +139,149 @@ server.registerTool(
       openWorldHint: true,
     },
   },
-  async ({ propertyUri, mode }) => {
+  async ({ propertyUri, mode, source, file_path, content, format, upload_id }) => {
     const safeUri = sanitizeSparqlUri(propertyUri);
     const definitionQuery = buildPropertyDefinitionQuery(safeUri);
 
-    return executeTool<unknown>("get_property_details", { propertyUri, mode }, async () => {
-      const defResult = await executeSparql(definitionQuery);
+    if (source === "schema") {
+      return executeTool<unknown>("get_property_details", { propertyUri, mode, source }, async () => {
+        const defResult = await executeSparql(definitionQuery);
+
+        if (mode === "raw") {
+          return {
+            success: true,
+            data: { source, mode, definition: compressSparqlResult(defResult) },
+            rowCount: defResult.results?.bindings?.length ?? 0,
+          };
+        }
+
+        const superQuery = buildPropertySuperQuery(safeUri, 50);
+        const superResult = await executeSparql(superQuery);
+        const { assertedDomain, assertedRange } = extractAssertedDomainRange(defResult);
+        const superMap = collectPropertySuperMap(superResult);
+        const { inheritedDomain, inheritedRange, superproperties } = buildPropertyInheritance(superMap);
+        const effectiveDomain = [...new Set([...assertedDomain, ...inheritedDomain.map((x) => x.domain)])];
+        const effectiveRange = [...new Set([...assertedRange, ...inheritedRange.map((x) => x.range)])];
+        const redundancy_analysis = await buildRedundancyAnalysis(
+          assertedDomain,
+          assertedRange,
+          inheritedDomain,
+          inheritedRange,
+          async (candidates, inherited) => {
+            if (candidates.length === 0 || inherited.length === 0) {
+              return new Map<string, string[]>();
+            }
+
+            const subclassResult = await executeSparql(`
+              SELECT ?sub ?sup WHERE {
+                VALUES ?sub { ${candidates.map((uri) => `<${uri}>`).join(" ")} }
+                VALUES ?sup { ${inherited.map((uri) => `<${uri}>`).join(" ")} }
+                ?sub rdfs:subClassOf+ ?sup .
+              }
+            `);
+
+            const subclassMap = new Map<string, string[]>();
+            for (const binding of subclassResult.results?.bindings ?? []) {
+              const sub = binding.sub?.value ?? "";
+              const sup = binding.sup?.value ?? "";
+              if (!sub || !sup) continue;
+              if (!subclassMap.has(sub)) subclassMap.set(sub, []);
+              subclassMap.get(sub)!.push(sup);
+            }
+            return subclassMap;
+          }
+        );
+
+        const totalRows =
+          (defResult.results?.bindings?.length ?? 0) +
+          (superResult.results?.bindings?.length ?? 0);
+
+        return {
+          success: true,
+          data: {
+            source,
+            mode,
+            definition: compressSparqlResult(defResult),
+            assertedDomain,
+            assertedRange,
+            superproperties,
+            inheritedDomain,
+            inheritedRange,
+            effectiveDomain,
+            effectiveRange,
+            redundancy_analysis,
+          },
+          rowCount: totalRows,
+        };
+      });
+    }
+
+    return executeTool<unknown>("get_property_details", { propertyUri, mode, source, file_path, upload_id, format }, async () => {
+      const context = await resolveSemanticContextStore({ source, file_path, content, format, upload_id });
+      const defResult = runLocalSparql(context.store, definitionQuery, true);
 
       if (mode === "raw") {
         return {
           success: true,
-          data: { mode, definition: compressSparqlResult(defResult) },
+          data: {
+            source,
+            context: context.source,
+            mode,
+            definition: compressSparqlResult(defResult),
+          },
           rowCount: defResult.results?.bindings?.length ?? 0,
         };
       }
 
-      const superQuery = buildPropertySuperQuery(safeUri, 50);
-      const superResult = await executeSparql(superQuery);
       const { assertedDomain, assertedRange } = extractAssertedDomainRange(defResult);
-      const superMap = collectPropertySuperMap(superResult);
+      const superResult = runLocalSparql(context.store, buildPropertySuperQuery(safeUri), true);
+      const superMap = collectPropertySuperMap(superResult, "local");
+      const warnings: string[] = [];
+      const notes: string[] = [];
+
+      if (source === "hybrid") {
+        const needsRemote = [...superMap.values()].filter(
+          (info) => info.domains.length === 0 && info.ranges.length === 0
+        );
+
+        if (needsRemote.length > 0) {
+          const valuesClause = needsRemote.map((info) => `<${info.uri}>`).join(" ");
+          try {
+            const remoteResult = await executeSparql(`
+              SELECT DISTINCT ?ancestor ?ancestorLabel ?domain ?range WHERE {
+                VALUES ?ancestor { ${valuesClause} }
+                OPTIONAL { ?ancestor rdfs:label ?ancestorLabel . FILTER(LANG(?ancestorLabel) = "" || LANG(?ancestorLabel) = "it" || LANG(?ancestorLabel) = "en") }
+                OPTIONAL { ?ancestor rdfs:domain ?domain }
+                OPTIONAL { ?ancestor rdfs:range ?range }
+              }
+            `);
+            const remoteFound = new Set<string>();
+            for (const binding of remoteResult.results?.bindings ?? []) {
+              const ancestorUri = binding.ancestor?.value ?? "";
+              if (!ancestorUri) continue;
+              remoteFound.add(ancestorUri);
+              const info = superMap.get(ancestorUri) ?? { uri: ancestorUri, label: "", domains: [], ranges: [], source: "remote" };
+              if (!superMap.has(ancestorUri)) superMap.set(ancestorUri, info);
+              if (binding.ancestorLabel?.value && !info.label) info.label = binding.ancestorLabel.value;
+              if (binding.domain?.value && !info.domains.includes(binding.domain.value)) info.domains.push(binding.domain.value);
+              if (binding.range?.value && !info.ranges.includes(binding.range.value)) info.ranges.push(binding.range.value);
+              info.source = "remote";
+            }
+            for (const info of needsRemote) {
+              if (!remoteFound.has(info.uri)) {
+                superMap.get(info.uri)!.source = "not-found";
+                warnings.push(`<${info.uri}> not found in local store or schema.gov.it — domain/range unknown.`);
+              }
+            }
+            if (remoteFound.size > 0) {
+              notes.push("Hybrid mode enriched missing super-property semantics from schema.gov.it.");
+            }
+          } catch (error) {
+            warnings.push(`Remote lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+      }
+
       const { inheritedDomain, inheritedRange, superproperties } = buildPropertyInheritance(superMap);
       const effectiveDomain = [...new Set([...assertedDomain, ...inheritedDomain.map((x) => x.domain)])];
       const effectiveRange = [...new Set([...assertedRange, ...inheritedRange.map((x) => x.range)])];
@@ -158,33 +295,53 @@ server.registerTool(
             return new Map<string, string[]>();
           }
 
-          const subclassResult = await executeSparql(`
+          const localSubclassResult = runLocalSparql(context.store, `
             SELECT ?sub ?sup WHERE {
-              VALUES ?sub { ${candidates.map((uri) => `<${uri}>`).join(" ")} }
-              VALUES ?sup { ${inherited.map((uri) => `<${uri}>`).join(" ")} }
+              VALUES ?sub { ${candidates.map((value) => `<${value}>`).join(" ")} }
+              VALUES ?sup { ${inherited.map((value) => `<${value}>`).join(" ")} }
               ?sub rdfs:subClassOf+ ?sup .
             }
-          `);
+          `, true);
 
           const subclassMap = new Map<string, string[]>();
-          for (const binding of subclassResult.results?.bindings ?? []) {
+          for (const binding of localSubclassResult.results?.bindings ?? []) {
             const sub = binding.sub?.value ?? "";
             const sup = binding.sup?.value ?? "";
             if (!sub || !sup) continue;
             if (!subclassMap.has(sub)) subclassMap.set(sub, []);
             subclassMap.get(sub)!.push(sup);
           }
+
+          if (source === "hybrid") {
+            try {
+              const remoteSubclassResult = await executeSparql(`
+                SELECT ?sub ?sup WHERE {
+                  VALUES ?sub { ${candidates.map((value) => `<${value}>`).join(" ")} }
+                  VALUES ?sup { ${inherited.map((value) => `<${value}>`).join(" ")} }
+                  ?sub rdfs:subClassOf+ ?sup .
+                }
+              `);
+              for (const binding of remoteSubclassResult.results?.bindings ?? []) {
+                const sub = binding.sub?.value ?? "";
+                const sup = binding.sup?.value ?? "";
+                if (!sub || !sup) continue;
+                if (!subclassMap.has(sub)) subclassMap.set(sub, []);
+                if (!subclassMap.get(sub)!.includes(sup)) subclassMap.get(sub)!.push(sup);
+              }
+            } catch {
+              // Keep local-only subclass analysis if remote enrichment fails.
+            }
+          }
+
           return subclassMap;
         }
       );
 
-      const totalRows =
-        (defResult.results?.bindings?.length ?? 0) +
-        (superResult.results?.bindings?.length ?? 0);
-
       return {
         success: true,
         data: {
+          source,
+          context: context.source,
           mode,
           definition: compressSparqlResult(defResult),
           assertedDomain,
@@ -195,8 +352,10 @@ server.registerTool(
           effectiveDomain,
           effectiveRange,
           redundancy_analysis,
+          ...(notes.length > 0 ? { notes } : {}),
+          ...(warnings.length > 0 ? { warnings } : {}),
         },
-        rowCount: totalRows,
+        rowCount: (defResult.results?.bindings?.length ?? 0) + (superResult.results?.bindings?.length ?? 0),
       };
     });
   }

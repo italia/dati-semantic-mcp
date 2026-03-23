@@ -1,0 +1,1476 @@
+@prefix gumshoe: <https://rpg-schema.org/gumshoe/> .
+@prefix rpg:     <https://rpg-schema.org/rpg/> .
+@prefix schema:  <https://schema.org/> .
+@prefix foaf:    <http://xmlns.com/foaf/0.1/> .
+@prefix dc:      <http://purl.org/dc/terms/> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================================
+# GUMSHOE SRD ONTOLOGY
+# Based on the GUMSHOE SRD OGL Version (Pelgrane Press, Robin D. Laws)
+# Encoded against rpg-schema (https://rpg-schema.org)
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# 1. RULESET DEFINITION
+# ----------------------------------------------------------------------------
+
+gumshoe:GUMSHOE_SRD a rpg:RuleSet ;
+    rpg:name "GUMSHOE System Reference Document" ;
+    rpg:description "Investigation-focused RPG system where finding clues is automatic and the drama comes from interpreting them. Published under OGL." ;
+    schema:version "1.0" ;
+    rpg:ruleSetType gumshoe:CoreRuleSet ;
+    rpg:author gumshoe:RobinDLaws ;
+    rpg:contributor gumshoe:KennethHite ;
+    rpg:publisher gumshoe:PelgranePress ;
+    rpg:usesResolutionModel gumshoe:SingleD6Model ;
+    rpg:hasLLMArtifact gumshoe:LLM_RuleSetOverview ;
+    rpg:hasLLMArtifact gumshoe:LLM_CorePhilosophy ;
+    rpg:hasAdvancementRule gumshoe:AdvancementBuildPoints .
+
+gumshoe:CoreRuleSet a rpg:RuleSetType ;
+    rpg:name "Core RuleSet" ;
+    rpg:description "Foundational mechanics for the GUMSHOE system." .
+
+gumshoe:RobinDLaws a foaf:Person ;
+    foaf:name "Robin D. Laws" .
+
+gumshoe:KennethHite a foaf:Person ;
+    foaf:name "Kenneth Hite" .
+
+gumshoe:PelgranePress a foaf:Organization ;
+    foaf:name "Pelgrane Press" .
+
+# --- LLM Artifacts for the RuleSet ---
+
+gumshoe:LLM_RuleSetOverview a rpg:LLMArtifact ;
+    rpg:artifactType rpg:SystemPrompt ;
+    rpg:artifactAppliesTo gumshoe:GUMSHOE_SRD ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# GUMSHOE System Reference Document — LLM Guide
+
+## Core Principle
+GUMSHOE is an investigation-focused RPG. The central question is NOT "will the heroes get the information?" but "what will the heroes DO with the information once they've got it?"
+
+## Two Ability Systems
+- **Investigative Abilities**: NEVER require a die roll. If a PC has a relevant ability at rating 1+, they automatically get core clues. Spending pool points yields special benefits (extra info, narrative advantages).
+- **General Abilities**: Use 1d6 + pool spend vs Difficulty Number. These introduce uncertainty and risk. Used for physical actions, combat, survival.
+
+## Key Mechanics
+- **Rating**: Static value, purchased with build points. Represents baseline competence.
+- **Pool**: Dynamic resource starting equal to rating each case. Spent during play for bonuses and special benefits.
+- **Tests**: 1d6 + spent points >= Difficulty Number (usually 4). Only for General abilities.
+- **Contests**: Alternating tests until one side fails.
+- **Spends**: Paying pool points for investigative special benefits (1-2 points typically).
+
+## Combat
+- Uses Scuffling (melee) or Shooting (ranged) as contested abilities.
+- Hit Threshold: 3 (or 4 if Athletics 8+). Opponent must meet/beat to hit.
+- Damage = 1d6 + weapon modifier. Subtracted from Health pool.
+- Health below 0: consciousness rolls, serious wounds, death at -12.
+
+## Stability
+- Mental resilience tracker. Failed Stability tests lose points.
+- Shaken (0 to -5), Mental Illness (-6 to -11), Incurably Insane (-12-).
+
+## Scenario Design
+- Built around trails of clues: investigation trigger → sinister conspiracy → trail of clues.
+- Core clues are ALWAYS available. Never gate story progress behind die rolls.
+- Scene types: Introductory, Core, Alternate, Antagonist Reaction, Hazard, Sub-Plot, Conclusion.
+- Clue types: Core, Floating Core, Leveraged, Pipe, Restricted, Timed Result.
+""" .
+
+gumshoe:LLM_CorePhilosophy a rpg:LLMArtifact ;
+    rpg:artifactType rpg:StyleGuide ;
+    rpg:artifactAppliesTo gumshoe:GUMSHOE_SRD ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# GUMSHOE Design Philosophy for GMs and AI Assistants
+
+## Never Withhold Core Clues
+If a PC has the right ability and is in the right place, they get the clue. Period. No roll required. This is the single most important rule in GUMSHOE.
+
+## Failure Is Not Interesting for Information Gathering
+In source fiction (CSI, Sherlock Holmes), investigators don't fail to use their expertise. The drama comes AFTER the clues are found, during interpretation and action.
+
+## Spends Are Spotlight Moments
+When a player spends investigative pool points, they're buying a moment of cool competence. Reward this with vivid, useful, character-affirming information.
+
+## General Ability Tests Create Suspense
+Reserve tests for dramatically important moments. Most general ability uses should succeed automatically. Tests introduce genuine risk.
+
+## The GM Never Reveals Difficulty Numbers
+Players must decide blind how many points to commit. This creates tension and meaningful resource management.
+
+## Elastic Participation
+Assume all PCs are sort-of present in every scene unless it would be absurd. Don't get bogged down in logistics of who went where.
+
+## Follow the Players
+If players invest in a theory, consider adapting rather than negating. Make them half-right. Build twists on their contributions. Never negate.
+""" .
+
+# ----------------------------------------------------------------------------
+# 2. RESOLUTION MODEL
+# ----------------------------------------------------------------------------
+
+gumshoe:SingleD6Model a rpg:ResolutionModel ;
+    rpg:name "Single d6 Test" ;
+    rpg:description "Roll 1d6, add spent pool points, compare to Difficulty Number (usually 4). Used only for General abilities." ;
+    rpg:hasLLMArtifact gumshoe:LLM_ResolutionModel .
+
+gumshoe:LLM_ResolutionModel a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:SingleD6Model ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# GUMSHOE Resolution
+- **Investigative abilities**: No roll. Automatic success if ability rating >= 1 and player is in right place using right ability.
+- **General ability tests**: Roll 1d6 + pool points spent >= Difficulty Number.
+- **Default Difficulty**: 4 for most tests and contests.
+- **Contests**: Alternating rolls; first to fail loses. Each participant tries to beat DN (typically 4).
+- **Toll Tests**: Success assured; roll first, then decide whether to pay the gap. Base DN 6.
+- **Zero Sum Contests**: All PCs roll; best (positive) or worst (negative) result triggers the outcome.
+- **Continuing Challenges**: Obstacle has a total pool (8+); PCs accumulate successes across multiple tests at DN 4.
+- **The GM never reveals Difficulty Numbers beforehand** (except in Zero Sum Contests where open DN is declared).
+""" .
+
+# --- Roll Definitions ---
+
+gumshoe:SimpleTest a rpg:Roll ;
+    rpg:name "Simple Test" ;
+    rpg:rollExpression "1d6 + pool_spend >= Difficulty (default 4)" ;
+    rpg:rollDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:usesResolutionModel gumshoe:SingleD6Model ;
+    rpg:description "A test against a fixed Difficulty with no active opposition. Spend pool points to add to roll." ;
+    rpg:hasLLMArtifact gumshoe:LLM_SimpleTest .
+
+gumshoe:LLM_SimpleTest a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:SimpleTest ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# Simple Test
+Player rolls 1d6 and may spend points from the relevant General ability pool to add to the result. The total must meet or exceed the Difficulty Number set by the GM (not revealed beforehand). A failed test means you've shot your wad — no retry unless you take a new supporting action and spend MORE points than the previous attempt.
+
+**Piggybacking**: When a group acts in concert, one leader rolls. Others pay 1 pool point each for the benefit. Each member who can't pay increases the Difficulty by 2.
+
+**Cooperation**: Two characters — leader rolls + spends, assistant spends points but only (N-1) of those add to the roll.
+""" .
+
+gumshoe:Contest a rpg:Roll ;
+    rpg:name "Contest" ;
+    rpg:rollExpression "Alternating 1d6 + pool_spend >= Difficulty (usually 4); first failure loses" ;
+    rpg:rollDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:usesResolutionModel gumshoe:SingleD6Model ;
+    rpg:description "Two characters alternate tests. First to fail loses. Used for chases and opposed actions." ;
+    rpg:hasLLMArtifact gumshoe:LLM_Contest .
+
+gumshoe:LLM_Contest a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:Contest ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# Contest
+Each character acts in turn (lowest rating goes first; ties: NPCs before PCs). Each makes a test. First to fail loses. The GM may assign different Difficulties to reflect advantages/disadvantages. Typical Difficulty is 4 for both sides. Narrate each exchange to keep the fiction alive.
+""" .
+
+gumshoe:TollTest a rpg:Roll ;
+    rpg:name "Toll Test" ;
+    rpg:rollExpression "1d6 (no pre-declared spend); then decide whether to pay gap to Difficulty 6+" ;
+    rpg:rollDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:usesResolutionModel gumshoe:SingleD6Model ;
+    rpg:description "Success is assured if you pay the cost. Roll first, then decide whether to spend points to bridge the gap." ;
+    rpg:hasLLMArtifact gumshoe:LLM_TollTest .
+
+gumshoe:LLM_TollTest a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:TollTest ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# Toll Test
+Success is guaranteed if you're willing to pay. Base Difficulty 6 (may be higher). You roll 1d6 WITHOUT declaring a spend. After seeing the result, decide whether to spend points to bridge the gap, or accept failure. This is about cost-benefit, not pass-fail.
+""" .
+
+gumshoe:ZeroSumContest a rpg:Roll ;
+    rpg:name "Zero Sum Contest" ;
+    rpg:rollExpression "All PCs roll 1d6 + secret spend; best/worst result triggers outcome" ;
+    rpg:rollDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:usesResolutionModel gumshoe:SingleD6Model ;
+    rpg:description "Something bad or good will happen to one PC. All roll; highest (positive) or lowest (negative) takes the outcome." .
+
+gumshoe:ContinuingChallenge a rpg:Roll ;
+    rpg:name "Continuing Challenge" ;
+    rpg:rollExpression "Series of tests at DN 4; successes accumulate against obstacle pool (8+)" ;
+    rpg:rollDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:usesResolutionModel gumshoe:SingleD6Model ;
+    rpg:description "A prolonged effort. The obstacle has a total difficulty pool. PCs accumulate successful roll+spend totals until they overcome it. Failed tests don't contribute." .
+
+# --- Roll Modifiers ---
+
+gumshoe:Piggybacking a rpg:RollModifier ;
+    rpg:name "Piggybacking" ;
+    rpg:modifierDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Group action: leader rolls, others pay 1 pool point. Non-payers increase Difficulty by 2 each." .
+
+gumshoe:Cooperation a rpg:RollModifier ;
+    rpg:name "Cooperation" ;
+    rpg:modifierDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Two characters: leader rolls + spends freely, assistant spends N points but only N-1 add to the roll." .
+
+gumshoe:LuckyShot a rpg:RollModifier ;
+    rpg:name "Lucky Shot" ;
+    rpg:modifierDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Forgiving settings only. Once per episode, a character with rating 0 may attempt a test by spending up to 4 points from their highest general pool. Requires unanimous player permission. Success must be narrated as fluky." .
+
+# ----------------------------------------------------------------------------
+# 3. INVESTIGATIVE ABILITY SYSTEM — Subclass of RuleSetAttribute
+# ----------------------------------------------------------------------------
+
+gumshoe:InvestigativeAbility rdfs:subClassOf rpg:RuleSetAttribute ;
+    rpg:name "Investigative Ability" ;
+    rpg:description "Abilities that automatically yield clues without die rolls. Finding information never fails if you have rating >= 1 and are in the right scene with the right approach." ;
+    rpg:hasLLMArtifact gumshoe:LLM_InvestigativeAbilities .
+
+gumshoe:LLM_InvestigativeAbilities a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:InvestigativeAbility ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# Investigative Abilities
+- **No die roll ever.** If a PC has rating 1+ in a relevant ability and is in the right scene, they get core clues automatically.
+- **Spends** (1-2 pool points) yield special benefits: extra info, narrative advantages, favorable impressions.
+- **Passive clues**: GM provides without prompting when obvious to a trained investigator.
+- **Active clues**: Player must declare use of a specific ability.
+- **Build points**: Spread widely; even 1 point is very effective. Rarely go above 3-4 in one ability.
+- **Pool refreshes** only at end of each case/investigation.
+
+## Subcategories
+- **Academic**: Knowledge and research-based (History, Law, Archaeology, etc.)
+- **Interpersonal**: Social interaction-based (Flattery, Intimidation, Reassurance, etc.)
+- **Technical**: Practical/scientific expertise (Forensics, Photography, Locksmith, etc.)
+""" .
+
+# --- Investigative Subcategories ---
+
+gumshoe:AcademicAbility rdfs:subClassOf gumshoe:InvestigativeAbility ;
+    rpg:name "Academic Ability" ;
+    rpg:description "Investigative abilities based on knowledge, education, and scholarly expertise." .
+
+gumshoe:InterpersonalAbility rdfs:subClassOf gumshoe:InvestigativeAbility ;
+    rpg:name "Interpersonal Ability" ;
+    rpg:description "Investigative abilities based on social interaction, persuasion, and reading people. Typically require active use: player must choose the right approach and describe the interaction." ;
+    rpg:hasLLMArtifact gumshoe:LLM_InterpersonalAbilities .
+
+gumshoe:LLM_InterpersonalAbilities a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:InterpersonalAbility ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# Interpersonal Abilities — GM Guidance
+Interpersonal abilities are typically ACTIVE: the player must choose the right ability and describe their approach. The GM should hint when a player is on the right track:
+- "You get the feeling this guy will crack if you lean on him a little." (Intimidation)
+- "He seems kind of smitten by you." (Flattery)
+- "The squeal of a police scanner tells you you've got a wannabe cop." (Cop Talk)
+
+When a player picks the wrong interpersonal ability, the NPC doesn't reveal the clue but the player doesn't lose points either. Guide them gently.
+""" .
+
+gumshoe:TechnicalAbility rdfs:subClassOf gumshoe:InvestigativeAbility ;
+    rpg:name "Technical Ability" ;
+    rpg:description "Investigative abilities based on practical, scientific, or technological expertise." .
+
+# --- Academic Abilities ---
+
+gumshoe:Anthropology a gumshoe:AcademicAbility ;
+    rpg:name "Anthropology" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Expert in human cultures from stone age to Internet age. Identify artifacts/rituals, describe customs, extrapolate unknown culture practices." ;
+    rpg:hasLLMArtifact gumshoe:LLM_Anthropology .
+
+gumshoe:LLM_Anthropology a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:Anthropology ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "Identify artifacts and rituals of living cultures. Describe customs of foreign groups or local subcultures. Extrapolate practices of an unknown culture from similar examples." .
+
+gumshoe:Archaeology a gumshoe:AcademicAbility ;
+    rpg:name "Archaeology" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Excavate and study structures/artifacts of historical cultures. Tell burial age, identify artifacts, distinguish fakes, navigate ruins, spot hidden graves." .
+
+gumshoe:Architecture a gumshoe:AcademicAbility ;
+    rpg:name "Architecture" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Know how buildings are planned and constructed. Guess what's around corners, judge material strength, identify age/style/history, construct makeshift structures." .
+
+gumshoe:ArtHistory a gumshoe:AcademicAbility ;
+    rpg:name "Art History" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Expert on works of art aesthetically and technically. Distinguish fakes, detect alterations, identify age by style, recall details on artists." .
+
+gumshoe:Botany a gumshoe:AcademicAbility ;
+    rpg:name "Botany" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Study plants and fungi. Identify environment from samples, identify toxic/dangerous plants, spot plant-derived poisoning symptoms." .
+
+gumshoe:ComparativeReligion a gumshoe:AcademicAbility ;
+    rpg:name "Comparative Religion" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Study religions ancient and modern. Supply info on practices/beliefs, quote scriptures, recognize saints/gods, identify orthodox vs heretical, fake ceremonies." .
+
+gumshoe:ForensicAccounting a gumshoe:AcademicAbility ;
+    rpg:name "Forensic Accounting" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Follow the money. Distinguish legitimate from criminal enterprises, spot embezzlement, track payments to source." .
+
+gumshoe:ForensicPsychology a gumshoe:AcademicAbility ;
+    rpg:name "Forensic Psychology" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Apply psychological insight to criminal cases. Assemble perpetrator profiles from crime scene details. Glean info from observing individuals under pressure." .
+
+gumshoe:Geology a gumshoe:AcademicAbility ;
+    rpg:name "Geology" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Expert on rocks, soils, minerals, primordial Earth history. Analyze samples, date strata, identify fossils, evaluate soil, anticipate seismic events." .
+
+gumshoe:History a gumshoe:AcademicAbility ;
+    rpg:name "History" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Expert in recorded human history (political, military, economic, technological). Recognize historical allusions, recall biographies, date objects, identify period dress." .
+
+gumshoe:Languages a gumshoe:AcademicAbility ;
+    rpg:name "Languages" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Each rating point grants fluency and literacy in one additional language. May be chosen at creation or revealed opportunistically during play." .
+
+gumshoe:Law a gumshoe:AcademicAbility ;
+    rpg:name "Law" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Familiar with criminal and civil law. At rating 2+, bar-certified attorney. Assess legal risks, understand jargon, argue with police/prosecutors." .
+
+gumshoe:Linguistics a gumshoe:AcademicAbility ;
+    rpg:name "Linguistics" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Expert in language principles and structures. Decipher unknown languages from samples, identify similar languages, identify artificial/alien languages." .
+
+gumshoe:NaturalHistory a gumshoe:AcademicAbility ;
+    rpg:name "Natural History" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Study evolution, behavior, biology of plants and animals. Detect strange animal behavior, identify species from samples, determine if natural to area." .
+
+gumshoe:OccultStudies a gumshoe:AcademicAbility ;
+    rpg:name "Occult Studies" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Historical study of magic, superstition, hermetic practice. Identify ritual traditions, supply occult historical facts, guess ritual intent. Knowledge is detached and academic — does NOT allow working magic." ;
+    rpg:hasLLMArtifact gumshoe:LLM_OccultStudies .
+
+gumshoe:LLM_OccultStudies a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:OccultStudies ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "IMPORTANT: Occult Studies is the knowledge of a detached, even disapproving, outsider. It does NOT allow working magic or summoning supernatural entities. At best, the character can fake a ritual while passing as a believer. The character's hostile presence may actually prevent a ritual from achieving efficacy." .
+
+gumshoe:Pathology a gumshoe:AcademicAbility ;
+    rpg:name "Pathology" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Medical examinations of living subjects. Diagnose sickness/injury causes, identify trauma extent, detect debilitating conditions, establish general health. Free at 1 point if Medic rating is 8+." .
+
+gumshoe:Research a gumshoe:AcademicAbility ;
+    rpg:name "Research" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Find factual information from books, records, official sources. Comfortable with card catalogs, Internet, and an extensive contacts file." .
+
+gumshoe:TextualAnalysis a gumshoe:AcademicAbility ;
+    rpg:name "Textual Analysis" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Draw inferences about authorship by studying text content. Determine if anonymous text matches a known author, identify era/region/education of writer." .
+
+gumshoe:Trivia a gumshoe:AcademicAbility ;
+    rpg:name "Trivia" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Font of apparently useless information: celebrities, sports, geography, arts, names in the news. Catch-all for obscure facts not covered by other abilities." .
+
+# --- Interpersonal Abilities ---
+
+gumshoe:BullshitDetector a gumshoe:InterpersonalAbility ;
+    rpg:name "Bullshit Detector" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Detect lies through interaction or close observation. Tells you THAT someone is lying, not WHAT about specifically. Psychopathic types may evade detection." ;
+    rpg:hasLLMArtifact gumshoe:LLM_BullshitDetector .
+
+gumshoe:LLM_BullshitDetector a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:BullshitDetector ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "This ability tells the PC someone is lying. It does NOT reveal what they're lying about or see through the lie to the truth. Not all lies are verbal — body language deception is also detectable. Some individuals (psychopaths, true believers) may never trigger the detector. Sometimes you need leverage (other clues) to get past a known liar." .
+
+gumshoe:Bureaucracy a gumshoe:InterpersonalAbility ;
+    rpg:name "Bureaucracy" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Navigate bureaucratic organizations. Get sensitive info from officials, gain false credentials, find the real decision-maker, locate files. NOT a catch-all — bureaucrats redirect you if other abilities are more appropriate." .
+
+gumshoe:CopTalk a gumshoe:InterpersonalAbility ;
+    rpg:name "Cop Talk" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Speak police lingo and make cops feel comfortable. Ply for confidential info, get excused for minor infractions, imply colleague status." .
+
+gumshoe:Flattery a gumshoe:InterpersonalAbility ;
+    rpg:name "Flattery" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Get people to help by complimenting them, subtly or blatantly. Reveal information, perform minor favors, regard you as trustworthy." .
+
+gumshoe:Flirting a gumshoe:InterpersonalAbility ;
+    rpg:name "Flirting" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Win cooperation from people who find you sexually attractive. High rating may mean physical allure or simply sexual magnetism." .
+
+gumshoe:HighSociety a gumshoe:InterpersonalAbility ;
+    rpg:name "High Society" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Navigate rich and famous circles. Dress appropriately, get past velvet ropes, blend with scenesters, identify luxury goods, schmooze for introductions, recall gossip. Does not convey actual wealth." .
+
+gumshoe:Impersonate a gumshoe:InterpersonalAbility ;
+    rpg:name "Impersonate" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Pose as another person. Brief voice mimicry costs 1+ spend. Face-to-face impersonation of a known individual costs 2-3 points per 5 minutes of contact." .
+
+gumshoe:Inspiration a gumshoe:InterpersonalAbility ;
+    rpg:name "Inspiration" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Convince reluctant witnesses by appealing to their better selves. Intuitively sense their positive values, then invoke them in a stirring speech." .
+
+gumshoe:Interrogation a gumshoe:InterpersonalAbility ;
+    rpg:name "Interrogation" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Extract information in formal police-style interviews. Requires official setting where subject is confined or feels under threat and recognizes your authority." .
+
+gumshoe:Intimidation a gumshoe:InterpersonalAbility ;
+    rpg:name "Intimidation" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Elicit cooperation through physical imposing presence and psychological dominance. May involve implied threats but is often pure mental dominance." .
+
+gumshoe:Negotiation a gumshoe:InterpersonalAbility ;
+    rpg:name "Negotiation" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Make deals, convince others your best arrangement is also theirs. Haggle, mediate hostage situations, swap favors/information." .
+
+gumshoe:OralHistory a gumshoe:InterpersonalAbility ;
+    rpg:name "Oral History" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Find willing sources, win confidence, gather oral testimony about events, traditions, folklore, legends, gossip. Excellent for illiterate/rural communities. Covers note-taking without spooking sources." .
+
+gumshoe:Reassurance a gumshoe:InterpersonalAbility ;
+    rpg:name "Reassurance" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Put people at ease. Elicit information and minor favors, allay fear or panic, instill calm during crisis." .
+
+gumshoe:Respect a gumshoe:InterpersonalAbility ;
+    rpg:name "Respect" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Gain information through culturally appropriate shows of respect for authority figures. Preserves both your status and the subject's." .
+
+gumshoe:Streetwise a gumshoe:InterpersonalAbility ;
+    rpg:name "Streetwise" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Navigate the criminal underworld. Deploy criminal etiquette, identify unsafe locations/dangerous people, gather underworld rumors." .
+
+gumshoe:Tradecraft a gumshoe:InterpersonalAbility ;
+    rpg:name "Tradecraft" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Conventional espionage techniques. Dead drops, brush passes, identify agencies by tradecraft, recognition signs, covert ops rumors, contact operatives, communicate elliptically." .
+
+# --- Technical Abilities ---
+
+gumshoe:Astronomy a gumshoe:TechnicalAbility ;
+    rpg:name "Astronomy" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Study celestial objects. Decipher astrological texts, plot constellation movement, study/debunk UFO reports." .
+
+gumshoe:Ballistics a gumshoe:TechnicalAbility ;
+    rpg:name "Ballistics" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Process firearm evidence. Identify caliber/type of bullets/casings, match guns to bullets." .
+
+gumshoe:Camping a gumshoe:TechnicalAbility ;
+    rpg:name "Camping" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Working and living outdoors. Detect strange animal behavior, find edible plants, make fire, navigate overland, track people/animals/vehicles, hunt with dogs." .
+
+gumshoe:Chemistry a gumshoe:TechnicalAbility ;
+    rpg:name "Chemistry" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Analysis of chemical substances. Identify drugs, toxins, viruses. Match dirt/vegetation samples to scenes." .
+
+gumshoe:Craft a gumshoe:TechnicalAbility ;
+    rpg:name "Craft" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Create useful physical objects (wood, metal, jewelry). Focus is utility not art. May discover secret compartments if relevant to your craft." .
+
+gumshoe:Cryptography a gumshoe:TechnicalAbility ;
+    rpg:name "Cryptography" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Making and breaking codes, from old-school ciphers to supercomputer algorithms." .
+
+gumshoe:DataRetrieval a gumshoe:TechnicalAbility ;
+    rpg:name "Data Retrieval" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Use computer/electronic technology to recover hidden/erased files, enhance audio recordings, find high-res images within blurry media." .
+
+gumshoe:DocumentAnalysis a gumshoe:TechnicalAbility ;
+    rpg:name "Document Analysis" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Study physical documents. Determine age, identify paper manufacturer, detect forgeries, identify handwriting, match typewriters, find fingerprints on paper." .
+
+gumshoe:ElectronicSurveillance_Inv a gumshoe:TechnicalAbility ;
+    rpg:name "Electronic Surveillance" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Use sound recording equipment. Trace phone calls, plant/locate listening devices, make/enhance audio recordings." .
+
+gumshoe:EvidenceCollection a gumshoe:TechnicalAbility ;
+    rpg:name "Evidence Collection" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Find, bag, and tag clues. Spot objects of interest, note relationships between objects, reconstruct event sequences, store objects without contamination." .
+
+gumshoe:ExplosiveDevices a gumshoe:TechnicalAbility ;
+    rpg:name "Explosive Devices" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Expert in bombs and booby-traps. Defuse, reconstruct exploded bombs, determine materials/manufacture/sophistication, safely construct and detonate." .
+
+gumshoe:Fingerprinting a gumshoe:TechnicalAbility ;
+    rpg:name "Fingerprinting" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Find, transfer, and match fingerprints. Includes computer database comparison expertise." .
+
+gumshoe:ForensicAnthropology a gumshoe:TechnicalAbility ;
+    rpg:name "Forensic Anthropology" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Autopsies to determine cause of death. Identify weapons, detect intoxicants, determine last meal contents, reconstruct event sequences from wounds. Also DNA analysis." .
+
+gumshoe:ForensicEntomology a gumshoe:TechnicalAbility ;
+    rpg:name "Forensic Entomology" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Study insect activity on corpses. Determine time of death and identify crime scene for dumped bodies." .
+
+gumshoe:Locksmith a gumshoe:TechnicalAbility ;
+    rpg:name "Locksmith" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Open doors/locks and disarm alarms without keys. A way to gather clues — locks holding clues should never be impassable. Only dramatic locks (safes, vaults) require actual tests." ;
+    rpg:hasLLMArtifact gumshoe:LLM_Locksmith .
+
+gumshoe:LLM_Locksmith a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:Locksmith ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "IMPORTANT: A lock that won't open is like a witness that won't talk — antithetical to mystery-solving design. Only safes, bank vaults, and dramatically significant locks require actual tests. All other locks yield to Locksmith as an investigative ability." .
+
+gumshoe:Photography a gumshoe:TechnicalAbility ;
+    rpg:name "Photography" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Proficient with cameras (still and video). Take visual records, spot manual/digital manipulation, realistically retouch images." .
+
+gumshoe:TrafficAnalysis a gumshoe:TechnicalAbility ;
+    rpg:name "Traffic Analysis" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Extract meaning from mass data. Analyze phone records, traffic patterns, find data flow patterns/anomalies, identify weak security spots, assemble organizational pictures of networks." .
+
+# --- Exotic Investigative Abilities (examples from SRD) ---
+
+gumshoe:AnalyticTaste a gumshoe:TechnicalAbility ;
+    rpg:name "Analytic Taste" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Superhuman sense of taste functioning as a walking chemical analysis lab. Detect composition of nearly any substance by tongue. Only trace quantities consumed. Not poison-immune." ;
+    rpg:hasTag gumshoe:Tag_Exotic .
+
+gumshoe:AuraReading a gumshoe:TechnicalAbility ;
+    rpg:name "Aura Reading" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "See energy nimbus around living organisms. Read emotional state (2-point spend) or detect health/supernatural influence (4-point spend)." ;
+    rpg:hasTag gumshoe:Tag_Exotic .
+
+gumshoe:Tag_Exotic a rpg:Tag ;
+    skos:prefLabel "Exotic" ;
+    rpg:description "Marks abilities that use non-realistic, supernatural, or sci-fi means unavailable to nonfictional characters." .
+
+# ----------------------------------------------------------------------------
+# 4. GENERAL ABILITY SYSTEM — Subclass of RuleSetAttribute
+# ----------------------------------------------------------------------------
+
+gumshoe:GeneralAbility rdfs:subClassOf rpg:RuleSetAttribute ;
+    rpg:name "General Ability" ;
+    rpg:description "Abilities that use 1d6 tests for uncertain outcomes. Help you survive while investigating. Concentrate points for higher ratings." ;
+    rpg:hasLLMArtifact gumshoe:LLM_GeneralAbilities .
+
+gumshoe:LLM_GeneralAbilities a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:GeneralAbility ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# General Abilities
+- **Use 1d6 + pool spend vs Difficulty Number** (usually 4, never revealed beforehand).
+- **Rating 0**: Cannot make tests (but can still do mundane tasks without rolling).
+- **Benchmarks**: 1-3 sideline, 4-7 solid, 8+ dedicated bad-assery.
+- **Cherries**: Special features unlocked at rating 8+, always available even if pool is 0.
+- **Build points**: 60 points total. Concentrate among a few abilities. Second-highest must be >= half of highest.
+- **Pool refresh**: Athletics, Driving, Scuffling, Shooting refresh after 24h game-world time. Others refresh at end of case.
+- **Some General abilities double as Investigative** when used to gather a clue rather than overcome opposition (setting-dependent).
+""" .
+
+# --- General Abilities ---
+
+gumshoe:Athletics a gumshoe:GeneralAbility ;
+    rpg:name "Athletics" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Physical derring-do: running, jumping, dodging. Catch-all for uncovered physical actions. Cherry: Hit Threshold becomes 4 at rating 8+." .
+
+gumshoe:BusinessAffairs a gumshoe:GeneralAbility ;
+    rpg:name "Business Affairs" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Run a profitable business." .
+
+gumshoe:Conceal a gumshoe:GeneralAbility ;
+    rpg:name "Conceal" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Hide things from view and search. Camouflage, secret compartments, alter visual signature. Also discover intentionally concealed things." .
+
+gumshoe:Disguise a gumshoe:GeneralAbility ;
+    rpg:name "Disguise" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Alter your appearance, posture, and voice. Voice mimicry DN 4. Face-to-face impersonation of known person DN 7 per 5 minutes." .
+
+gumshoe:Driving a gumshoe:GeneralAbility ;
+    rpg:name "Driving" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Skilled defensive driver. Pursue/evade, avoid collisions, spot tampering, emergency repairs. Each extra rating point adds a vehicle type." .
+
+gumshoe:Explosives a gumshoe:GeneralAbility ;
+    rpg:name "Explosives" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Bombs and booby-traps. Defuse, handle unstable materials, blow safes, mix compounds, construct devices. Doubles as investigative for reconstructing/analyzing bombs." .
+
+gumshoe:Filch a gumshoe:GeneralAbility ;
+    rpg:name "Filch" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Unobtrusively manipulate small objects. Pilfer clues from scenes, pick pockets, plant objects on subjects." .
+
+gumshoe:Fleeing a gumshoe:GeneralAbility ;
+    rpg:name "Fleeing" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Run like hell when chased. Half-price points if Fleeing rating > 2x Athletics rating." .
+
+gumshoe:Gambling a gumshoe:GeneralAbility ;
+    rpg:name "Gambling" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "All forms of gambling. Win/lose strategically, spot/perform cheating. Doubles as investigative for calculating odds, reading gamblers, blending in casinos." .
+
+gumshoe:Health a gumshoe:GeneralAbility ;
+    rpg:name "Health" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Ability to sustain injuries, resist infection, survive toxins. When depleted: dazed, wounded, or dead. Start with 1 free point." ;
+    rpg:hasLLMArtifact gumshoe:LLM_Health .
+
+gumshoe:LLM_Health a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:Health ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# Health Pool — Damage Thresholds
+- **0 to -5 (Hurt)**: Superficial injuries. Cannot spend on Investigative abilities. All Difficulties +1 (including Hit Thresholds). Medic can restore: 2 Health per Medic point spent (1:1 if self-treating).
+- **-6 to -11 (Seriously Wounded)**: Consciousness roll required. Cannot fight. Lose 1 Health per half hour without first aid. Stabilize with 2 Medic points. Hospitalized for days equal to absolute lowest Health.
+- **-12 or below**: Dead. Create new character.
+- **Consciousness Roll**: 1d6 >= absolute value of current Health. May voluntarily reduce Health further to add to die result.
+- **Refresh**: 2 points per day of rest. Full refresh after hospitalization.
+""" .
+
+gumshoe:Hypnosis a gumshoe:GeneralAbility ;
+    rpg:name "Hypnosis" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Medical hypnosis (not mind control). Willing subjects only. Trance DN 3, recover memories DN 4, post-hypnotic suggestion DN 4+, ease pain DN 4+, false memories as contest vs Stability." .
+
+gumshoe:Infiltration a gumshoe:GeneralAbility ;
+    rpg:name "Infiltration" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Get into (and out of) places undetected. Pick locks, evade security, move silently, find forced entry points." .
+
+gumshoe:Mechanics a gumshoe:GeneralAbility ;
+    rpg:name "Mechanics" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Build, repair, disable devices. Jury-rig from scrap. Doubles as investigative for evaluating workmanship and identifying makers." .
+
+gumshoe:Medic a gumshoe:GeneralAbility ;
+    rpg:name "Medic" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "First aid on sick/injured. Spend Medic points to restore Health (2:1 ratio, 1:1 self-treating). Cherry: Medic 8+ grants Pathology 1 free." .
+
+gumshoe:Piloting a gumshoe:GeneralAbility ;
+    rpg:name "Piloting" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Fly airborne vehicles. Pursue/evade, anticipate weather, navigate, emergency repairs." .
+
+gumshoe:Preparedness a gumshoe:GeneralAbility ;
+    rpg:name "Preparedness" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Produce needed gear from your kit on a successful test. Obvious items require no test. Narratively implausible items are simply unavailable. Does not overlap with ability-specific gear." ;
+    rpg:hasLLMArtifact gumshoe:LLM_Preparedness .
+
+gumshoe:LLM_Preparedness a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:Preparedness ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "Preparedness depends on narrative credibility, not rating or pool. If the GM determines possession of an item would be ludicrous or out of genre, you simply don't have it. Any item that elicits a laugh from the group is probably out of bounds. 'Inappropriate use of Preparedness is like pornography — your GM will know it when she sees it.'" .
+
+gumshoe:PublicRelations a gumshoe:GeneralAbility ;
+    rpg:name "Public Relations" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Manage public image. Unruffle feathers, burnish reputations, downplay failures. GM may allow Reassurance/Respect points on PR tests." .
+
+gumshoe:Riding a gumshoe:GeneralAbility ;
+    rpg:name "Riding" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Gifted equestrian. Mounted pursuit, care/groom/shoe mounts, calm nervous mounts, drive wagons, wield weapons while riding. Every 2 extra rating points: +1 exotic mount type." .
+
+gumshoe:Scuffling a gumshoe:GeneralAbility ;
+    rpg:name "Scuffling" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Hand-to-hand fighting: kill, knock out, restrain, or evade opponents." .
+
+gumshoe:SenseTrouble a gumshoe:GeneralAbility ;
+    rpg:name "Sense Trouble" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Spot signs of danger. Hear sneaking, see hidden figures, smell gas leaks, have bad feelings. Difficulty never revealed. Only one PC attempts per source of danger. Does not advance the mystery — saves skins." ;
+    rpg:hasLLMArtifact gumshoe:LLM_SenseTrouble .
+
+gumshoe:LLM_SenseTrouble a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:SenseTrouble ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "Players NEVER know the Difficulty Number for Sense Trouble, even in games where GMs otherwise reveal Difficulties. Players must blindly choose how much to spend. When multiple PCs could test, the group chooses ONE to attempt. Only one attempt per source of trouble." .
+
+gumshoe:Shrink a gumshoe:GeneralAbility ;
+    rpg:name "Shrink" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Provide comfort and perspective to the mentally troubled. Restore calm, treat long-term mental illness. Spend Shrink points to restore Stability (2:1 ratio). 2 points snap erratic character to temporary lucidity." .
+
+gumshoe:Shooting a gumshoe:GeneralAbility ;
+    rpg:name "Shooting" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Adept with firearms." .
+
+gumshoe:Stability a gumshoe:GeneralAbility ;
+    rpg:name "Stability" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Resistance to psychological trauma. Start with 1 free point. When depleted: shaken, mentally ill, or incurably insane." ;
+    rpg:hasLLMArtifact gumshoe:LLM_Stability .
+
+gumshoe:LLM_Stability a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:Stability ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# Stability — Mental Damage Thresholds
+- **Test**: 1d6 + spend >= 4 when encountering stressful incidents. Loss capped at worst incident per scene.
+- **0 to -5 (Shaken)**: All general Difficulties +1. Investigative spends require a test (DN = absolute Stability value).
+- **-6 to -11 (Mental Illness)**: Acquire a mental illness (PTSD or supernatural disorder). Permanently lose 1 Stability rating. Continue suffering Shaken effects.
+- **-12 or below (Incurably Insane)**: One last crazy act, then character is retired.
+
+## Stability Loss Table (examples)
+| Incident | Loss |
+|---|---|
+| Attacked with intent to harm | 2 |
+| Vehicle accident | 2 |
+| Attacked with intent to kill | 3 |
+| See supernatural creature (distance) | 3 |
+| See supernatural creature (close) | 4 |
+| Grisly murder/accident scene | 4 |
+| Friend/loved one violently killed (learned) | 4 |
+| Discover friend/loved one's corpse | 6 |
+| Attacked by supernatural creature | 7 |
+| See friend/loved one killed | 7 |
+| Friend/loved one killed gruesomely | 8 |
+
+## Mental Illness (supernatural trigger)
+1. Delusion, 2. Homicidal Mania, 3. Megalomania, 4. Multiple Personality, 5. Paranoia, 6. Selective Amnesia.
+""" .
+
+gumshoe:Surveillance a gumshoe:GeneralAbility ;
+    rpg:name "Surveillance" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Follow suspects undetected. Guide team tails, use telescopic equipment, find vantage points, hide in plain sight, perceive hazards. Cherry: 8+ grants Electronic Surveillance 1 free." .
+
+# --- Exotic General Abilities ---
+
+gumshoe:BloodSpray a gumshoe:GeneralAbility ;
+    rpg:name "Blood Spray" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Mutant ranged attack: high-pressure blood spray from mouth. Costs 3 Health per use. Knocks down opponents, inspires revulsion (Stability test to avoid fleeing)." ;
+    rpg:hasTag gumshoe:Tag_Exotic .
+
+gumshoe:PathwayAmplification a gumshoe:GeneralAbility ;
+    rpg:name "Pathway Amplification" ;
+    rpg:definedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Heighten another mind's recall ability. Once per episode, add your rating to a designated PC's investigative ability pool." ;
+    rpg:hasTag gumshoe:Tag_Exotic .
+
+# ----------------------------------------------------------------------------
+# 5. TRACKERS
+# ----------------------------------------------------------------------------
+
+gumshoe:HealthTracker a rpg:Tracker ;
+    rpg:name "Health" ;
+    rpg:trackerDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Physical damage tracker. Pool can go below 0. Free 1 point at creation. Refreshes 2/day rest." .
+
+gumshoe:StabilityTracker a rpg:Tracker ;
+    rpg:name "Stability" ;
+    rpg:trackerDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Mental damage tracker. Pool can go below 0. Free 1 point at creation. Refreshes between cases with supportive personal life." .
+
+gumshoe:BuildPointsTracker a rpg:Tracker ;
+    rpg:name "Build Points" ;
+    rpg:trackerDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Experience currency. 2 build points per session played. Spend to increase any ability rating." .
+
+# ----------------------------------------------------------------------------
+# 6. STATES AND CONDITIONS
+# ----------------------------------------------------------------------------
+
+gumshoe:Hurt a rpg:Condition ;
+    rpg:name "Hurt" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Health 0 to -5. Superficial injuries. Cannot spend on Investigative abilities. All Difficulties +1." ;
+    rpg:hasLLMArtifact gumshoe:LLM_Hurt .
+
+gumshoe:LLM_Hurt a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:Hurt ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "Character has pain from injuries. Cannot spend points on Investigative abilities. All test Difficulties and Hit Thresholds increase by 1. Medic can restore 2 Health per Medic point (1:1 self-treating), up to pre-incident level." .
+
+gumshoe:SeriouslyWounded a rpg:Condition ;
+    rpg:name "Seriously Wounded" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Health -6 to -11. Consciousness roll required. Cannot fight. Loses 1 Health/30min without first aid. Stabilize with 2 Medic points. Hospitalized for days = absolute lowest Health." .
+
+gumshoe:Dead a rpg:Condition ;
+    rpg:name "Dead" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Health -12 or below. Character is dead. Create replacement." .
+
+gumshoe:Shaken a rpg:Condition ;
+    rpg:name "Shaken" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Stability 0 to -5. All general Difficulties +1. Investigative spends require a Stability test (DN = absolute current Stability)." .
+
+gumshoe:MentallyIll a rpg:Condition ;
+    rpg:name "Mentally Ill" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Stability -6 to -11. Acquire a mental illness. Permanently lose 1 Stability rating. Still suffer Shaken effects." .
+
+gumshoe:IncurablyInsane a rpg:Condition ;
+    rpg:name "Incurably Insane" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Stability -12 or below. One last crazy act (heroic or destructive), then character is retired." .
+
+gumshoe:Surprised a rpg:Condition ;
+    rpg:name "Surprised" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "+2 to all general ability Difficulties for the immediately subsequent action. In combat, applies to first round." .
+
+# --- Mental Illness Types ---
+
+gumshoe:PTSD a rpg:Condition ;
+    rpg:name "Post-Traumatic Stress Syndrome" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "From mundane trauma. Haunted by dreams, constant anxiety. Stability test DN 4 on reminder stimuli or freeze for 15 min + shaken 24h." .
+
+gumshoe:Delusion a rpg:Condition ;
+    rpg:name "Delusion" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Supernatural mental illness. A mundane detail of reality is erased. Other PCs and NPCs deny its existence." .
+
+gumshoe:HomicidalMania a rpg:Condition ;
+    rpg:name "Homicidal Mania" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Supernatural mental illness. The character believes one other PC is a supernatural creature and knows how to kill them." .
+
+gumshoe:Megalomania a rpg:Condition ;
+    rpg:name "Megalomania" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Supernatural mental illness. Failures are perceived as successes by the afflicted character. GM describes reality to other players separately." .
+
+gumshoe:MultiplePersonality a rpg:Condition ;
+    rpg:name "Multiple Personality Disorder" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Supernatural mental illness. At moments of stress, another player takes control of the character as a different personality." .
+
+gumshoe:Paranoia a rpg:Condition ;
+    rpg:name "Paranoia" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Supernatural mental illness. Other players act suspiciously, exchange notes and signals, use meaningless code words." .
+
+gumshoe:SelectiveAmnesia a rpg:Condition ;
+    rpg:name "Selective Amnesia" ;
+    rpg:stateDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Supernatural mental illness. The character has forgotten a significant true event. Everyone else references it as established fact." .
+
+# ----------------------------------------------------------------------------
+# 7. FICTION KNOBS — Spends and Investigative Benefits
+# ----------------------------------------------------------------------------
+
+gumshoe:InvestigativeSpend a rpg:FictionKnob ;
+    rpg:name "Investigative Spend" ;
+    rpg:knobDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Spending 1-2 investigative pool points for special benefits beyond the core clue. Benefits include extra info, narrative advantages, favorable impressions, or story leaps." ;
+    rpg:hasLLMArtifact gumshoe:LLM_InvestigativeSpend .
+
+gumshoe:LLM_InvestigativeSpend a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:InvestigativeSpend ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# Investigative Spend — GM Guide
+- **Cost**: 1 or 2 points from the relevant investigative pool.
+- **GM always tells the player the cost** before they decide.
+- **Never required** to solve the case or reach the next scene.
+- **Effects**: Make the character seem clever/powerful/heroic. Grant useful later benefits. Create favorable impressions on NPCs. Allow leaping ahead in the story. Add emotional depth or tie into character backstory.
+- **Think TV**: A spend gives the actor a juicy spotlight scene.
+- **Player initiative**: After the first few scenarios, players should proactively ask if extra effort would yield benefits. Entertaining suggestions may earn benefits not in the GM's notes.
+- **If no benefit exists**: The player does not lose the points they wished to spend.
+""" .
+
+gumshoe:GeneralSpend a rpg:FictionKnob ;
+    rpg:name "General Spend" ;
+    rpg:knobDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "A flat cost (no roll) from general ability pools for tasks with no reasonable chance of failure but which should cost effort. 1-2 points per character is typical." .
+
+# ----------------------------------------------------------------------------
+# 8. ITEMS — Weapons and Armor
+# ----------------------------------------------------------------------------
+
+gumshoe:Fist a rpg:Item ;
+    rpg:name "Fist/Kick" ;
+    rpg:itemDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Unarmed attack." ;
+    rpg:llmDescriptor "Damage modifier: -2. Melee range. Uses Scuffling." .
+
+gumshoe:SmallWeapon a rpg:Item ;
+    rpg:name "Small Improvised Weapon / Police Baton / Knife" ;
+    rpg:itemDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Light melee weapon." ;
+    rpg:llmDescriptor "Damage modifier: -1. Melee range. Uses Scuffling." .
+
+gumshoe:MediumWeapon a rpg:Item ;
+    rpg:name "Machete / Heavy Club / Light Firearm" ;
+    rpg:itemDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Standard weapon." ;
+    rpg:llmDescriptor "Damage modifier: +0. Light firearms use Shooting (handguns/shotguns range 50m). Melee uses Scuffling." .
+
+gumshoe:HeavyWeapon a rpg:Item ;
+    rpg:name "Sword / Heavy Firearm" ;
+    rpg:itemDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Heavy weapon." ;
+    rpg:llmDescriptor "Damage modifier: +1. Heavy firearms use Shooting (rifles range 100m). Melee uses Scuffling. Point blank range: additional +2." .
+
+gumshoe:LightBodyArmor a rpg:Item ;
+    rpg:name "Light Body Armor" ;
+    rpg:itemDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Police-grade armor." ;
+    rpg:llmDescriptor "Reduces bullet damage by 2, cutting/stabbing by 1 per instance. Heavy, hot, marks you as looking for trouble. Attracts SWAT attention if worn openly." .
+
+gumshoe:MilitaryArmor a rpg:Item ;
+    rpg:name "Military-Grade Body Armor" ;
+    rpg:itemDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Military-grade armor." ;
+    rpg:llmDescriptor "Reduces bullet damage by 3 per instance. All drawbacks of light armor doubled. Only useful in discrete missions away from prying eyes." .
+
+# --- Combat LLM Artifact ---
+
+gumshoe:LLM_CombatRules a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactScope gumshoe:GUMSHOE_SRD ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# GUMSHOE Combat Rules Summary
+
+## Initiative
+- **Scuffling**: PC goes first if Scuffling rating >= opponent's.
+- **Shooting**: PC goes first if Shooting rating > opponent's (strict).
+- Otherwise opponent goes first.
+
+## Hit Threshold
+- Default: 3. Athletics 8+: 4. Less competent NPCs may have lower. Creatures may have 4+.
+
+## Damage
+- Roll 1d6 + weapon modifier. Subtract from opponent's Health.
+- **Point blank firearms**: +2 additional modifier.
+- **Characters may never spend combat pool points to increase damage.**
+
+## Cover
+- Exposed: Hit Threshold -1.
+- Partial Cover: No change.
+- Full Cover: Hit Threshold +1.
+
+## One Gun, Two Combatants
+- Charging someone with a ready gun: auto-hit, damage TRIPLED (after modifiers).
+- Unready pistol: Scuffling contest for gun control.
+
+## Running Away
+- Athletics test: DN 3 + number of foes. Success: flee, opponent must chase. Failure: take one damage instance, then chase (you roll first).
+
+## Called Shots
+- Add +1 to +4 to Hit Threshold based on location. Hitting head/throat/chest: +2 damage. Heart: +3 damage.
+
+## Fighting Without Abilities (rating 0)
+- -2 additional damage. Must declare action at round start (no changes). Go last. Firearms: roll of 1 = accidentally shot self or ally.
+""" .
+
+# ----------------------------------------------------------------------------
+# 9. CHERRIES (Features unlocked at rating 8+)
+# ----------------------------------------------------------------------------
+
+gumshoe:Cherry_Athletics a rpg:Feature ;
+    rpg:name "Athletics Cherry: Increased Hit Threshold" ;
+    rpg:capabilityDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Hit Threshold becomes 4 instead of 3." ;
+    rpg:hasPrerequisite gumshoe:Prereq_Athletics8 .
+
+gumshoe:Prereq_Athletics8 a rpg:Prerequisite ;
+    rpg:requiresTracker gumshoe:HealthTracker ;
+    rpg:prerequisiteNotes "Requires Athletics rating of 8 or more. The cherry is always active even if pool drops to 0." .
+
+gumshoe:Cherry_Medic a rpg:Feature ;
+    rpg:name "Medic Cherry: Free Pathology" ;
+    rpg:capabilityDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Medic rating 8+ grants Pathology 1 for free." ;
+    rpg:prerequisiteNotes "Requires Medic rating of 8 or more." .
+
+gumshoe:Cherry_Surveillance a rpg:Feature ;
+    rpg:name "Surveillance Cherry: Free Electronic Surveillance" ;
+    rpg:capabilityDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Surveillance rating 8+ grants Electronic Surveillance 1 for free." ;
+    rpg:prerequisiteNotes "Requires Surveillance rating of 8 or more." .
+
+gumshoe:Cherry_MartialArts a rpg:Feature ;
+    rpg:name "Martial Arts" ;
+    rpg:capabilityDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Scuffling 8+: Once per fight, gain 4-point Scuffling refresh by narrating an evocative martial arts move. Poetic descriptions may earn 5-point refresh at GM's discretion." ;
+    rpg:prerequisiteNotes "Requires Scuffling rating of 8 or more." .
+
+# ----------------------------------------------------------------------------
+# 10. SCENE TYPE VOCABULARY (Controlled)
+# ----------------------------------------------------------------------------
+
+gumshoe:SceneTypeScheme a skos:ConceptScheme ;
+    skos:prefLabel "GUMSHOE Scene Types" ;
+    rpg:description "Controlled vocabulary for scene types in GUMSHOE scenario design." .
+
+gumshoe:SceneType_Introductory a rpg:Tag ;
+    skos:prefLabel "Introductory" ;
+    skos:inScheme gumshoe:SceneTypeScheme ;
+    rpg:description "First scene of the episode. Establishes the premise of the mystery. Characters rendezvous and receive their briefing." .
+
+gumshoe:SceneType_Core a rpg:Tag ;
+    skos:prefLabel "Core" ;
+    skos:inScheme gumshoe:SceneTypeScheme ;
+    rpg:description "Contains at least one core clue necessary to complete the investigation. Avoid hard-sequencing core scenes; allow multiple paths." ;
+    rpg:hasLLMArtifact gumshoe:LLM_CoreScene .
+
+gumshoe:LLM_CoreScene a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:SceneType_Core ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "Core scenes MUST contain at least one core clue. The designated ability for a core clue is just one possibility — if players propose a plausible alternative method, give the info. Avoid hard-sequencing. You're constructing ONE way through the story, not the ONLY way. Add spends when facts seem arcane, tangential, or would confer practical advantage. Not every non-core clue should be a spend." .
+
+gumshoe:SceneType_Alternate a rpg:Tag ;
+    skos:prefLabel "Alternate" ;
+    skos:inScheme gumshoe:SceneTypeScheme ;
+    rpg:description "Provides useful but non-essential information. Context, detail, same info via different route, or elimination of red herrings." .
+
+gumshoe:SceneType_AntagonistReaction a rpg:Tag ;
+    skos:prefLabel "Antagonist Reaction" ;
+    skos:inScheme gumshoe:SceneTypeScheme ;
+    rpg:description "Danger scene where opposition acts against the group. May be fight, political hassle, sabotage. Can be floating to kick up pace." .
+
+gumshoe:SceneType_Hazard a rpg:Tag ;
+    skos:prefLabel "Hazard" ;
+    skos:inScheme gumshoe:SceneTypeScheme ;
+    rpg:description "Impersonal obstacle to safety or investigation progress. Overcome through tests or contests." .
+
+gumshoe:SceneType_SubPlot a rpg:Tag ;
+    skos:prefLabel "Sub-Plot" ;
+    skos:inScheme gumshoe:SceneTypeScheme ;
+    rpg:description "Character interaction without direct investigation impact. Personal arcs, side deals, curiosity. Adds flavor, often what players remember most." .
+
+gumshoe:SceneType_Conclusion a rpg:Tag ;
+    skos:prefLabel "Conclusion" ;
+    skos:inScheme gumshoe:SceneTypeScheme ;
+    rpg:description "Final scene: moral dilemma, physical obstacle, or both. Often a big fight. May be resolved through talk and clever thinking." .
+
+gumshoe:SceneType_Hybrid a rpg:Tag ;
+    skos:prefLabel "Hybrid" ;
+    skos:inScheme gumshoe:SceneTypeScheme ;
+    rpg:description "Scene combining types, e.g., hazard leading to information. Core clues in hybrids MUST also be available by other means." .
+
+# ----------------------------------------------------------------------------
+# 11. CLUE TYPE VOCABULARY
+# ----------------------------------------------------------------------------
+
+gumshoe:ClueTypeScheme a skos:ConceptScheme ;
+    skos:prefLabel "GUMSHOE Clue Types" ;
+    rpg:description "Controlled vocabulary for clue types in GUMSHOE scenario design." .
+
+gumshoe:ClueType_Core a rpg:Tag ;
+    skos:prefLabel "Core Clue" ;
+    skos:inScheme gumshoe:ClueTypeScheme ;
+    rpg:description "Essential information to move to the next scene and complete the investigation. Costs nothing. ALWAYS available if PC has relevant ability." ;
+    rpg:hasLLMArtifact gumshoe:LLM_CoreClue .
+
+gumshoe:LLM_CoreClue a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:ClueType_Core ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "The absolute foundation of GUMSHOE design. A core clue MUST be obtainable. Never gate it behind a die roll. The designated ability is a suggestion, not a straitjacket. If players propose a plausible alternative, give the clue. GMs should avoid obscure abilities for core clues. The character creation system ensures the group covers nearly all abilities." .
+
+gumshoe:ClueType_FloatingCore a rpg:Tag ;
+    skos:prefLabel "Floating Core Clue" ;
+    skos:inScheme gumshoe:ClueTypeScheme ;
+    rpg:description "A core clue not fixed to one scene. GM decides during play when it appears. Controls pacing: hold for all fun scenes, or release early if players are frustrated." ;
+    rpg:hasLLMArtifact gumshoe:LLM_FloatingCore .
+
+gumshoe:LLM_FloatingCore a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:ClueType_FloatingCore ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "Floating core clues give GMs pacing control. If players are having fun with NPCs and atmosphere, save it for the last available scene. If they're bored or frustrated, release it early. Player frustration is usually a better trigger than a predetermined timer. Use these to advance the story from one distinct section to another." .
+
+gumshoe:ClueType_Leveraged a rpg:Tag ;
+    skos:prefLabel "Leveraged Clue" ;
+    skos:inScheme gumshoe:ClueTypeScheme ;
+    rpg:description "Available only by combining an interpersonal ability with a previously gathered clue (the prerequisite clue). The prerequisite clue is a sub-category of core clue." ;
+    rpg:hasLLMArtifact gumshoe:LLM_LeveragedClue .
+
+gumshoe:LLM_LeveragedClue a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:ClueType_Leveraged ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "Classic mystery trope: a crucial fact that breaks a resistant witness. Requires (1) an interpersonal ability AND (2) mentioning a previously gathered prerequisite clue. The prerequisite clue must itself be a core clue. Example: presenting evidence of the victim's secret to a suspect using Interrogation." .
+
+gumshoe:ClueType_Pipe a rpg:Tag ;
+    skos:prefLabel "Pipe Clue" ;
+    skos:inScheme gumshoe:ClueTypeScheme ;
+    rpg:description "Important to the solution but becomes significant much later. Creates 'eureka' moments. Risk: players may forget early components across sessions. GM may need to prompt." ;
+    rpg:hasLLMArtifact gumshoe:LLM_PipeClue .
+
+gumshoe:LLM_PipeClue a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:ClueType_Pipe ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "Named from screenwriting jargon ('laying pipe'). Pipe clues create structural variety and reduce linearity. They give players eureka moments when disparate pieces suddenly connect. Risk: player memory across sessions. GM should occasionally prompt players to recall the first piece when they encounter the second." .
+
+gumshoe:ClueType_Restricted a rpg:Tag ;
+    skos:prefLabel "Restricted Clue" ;
+    skos:inScheme gumshoe:ClueTypeScheme ;
+    rpg:description "Secret/esoteric facts known only to one group member who happens to know. Only one PC gets it (first to act, or highest pool, or narrative fit). Comes as news to all others." .
+
+gumshoe:ClueType_TimedResult a rpg:Tag ;
+    skos:prefLabel "Timed Result" ;
+    skos:inScheme gumshoe:ClueTypeScheme ;
+    rpg:description "Lab results or expert analysis that arrives after a delay. Can redirect investigation, change interpretation of existing clues, or cut short a stalled scene. Serves as delayed-reaction core clue." ;
+    rpg:hasLLMArtifact gumshoe:LLM_TimedResult .
+
+gumshoe:LLM_TimedResult a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:ClueType_TimedResult ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "Timed results model forensic lab work. Use them to: (1) direct PCs to a new scene when bored/bogged down, (2) change interpretation of existing evidence without moving to a new scene, (3) cut short a scene players won't leave despite having all clues. The phone call from the lab is a classic pacing tool." .
+
+# --- Passive vs Active Clue Tags ---
+
+gumshoe:ClueType_Passive a rpg:Tag ;
+    skos:prefLabel "Passive Clue" ;
+    skos:inScheme gumshoe:ClueTypeScheme ;
+    rpg:description "Obvious to a trained investigator upon entering a scene. GM provides without prompting. May be adjusted to active if players are on a roll." .
+
+gumshoe:ClueType_Active a rpg:Tag ;
+    skos:prefLabel "Active Clue" ;
+    skos:inScheme gumshoe:ClueTypeScheme ;
+    rpg:description "Requires player to declare use of a specific ability. May be volunteered by GM if players are bogging down." .
+
+gumshoe:ClueType_Inconspicuous a rpg:Tag ;
+    skos:prefLabel "Inconspicuous Clue" ;
+    skos:inScheme gumshoe:ClueTypeScheme ;
+    rpg:description "Noticed instinctively in transitional scenes. Goes to the character with highest current pool (then highest rating). Covers hidden doors, blood droplets, planted bombs." .
+
+gumshoe:ClueType_SimpleSearch a rpg:Tag ;
+    skos:prefLabel "Simple Search" ;
+    skos:inScheme gumshoe:ClueTypeScheme ;
+    rpg:description "Findable by any ordinary person looking in the right place. No ability required. Bloody footprints on carpet, envelope taped under a table." .
+
+# ----------------------------------------------------------------------------
+# 12. MYSTERY STRUCTURE CONCEPTS
+# ----------------------------------------------------------------------------
+
+gumshoe:InvestigationTrigger a rpg:Tag ;
+    skos:prefLabel "Investigation Trigger" ;
+    rpg:description "The event that attracts investigator attention: murder discovery, supernatural sighting, unexplained phenomenon." .
+
+gumshoe:SinisterConspiracy a rpg:Tag ;
+    skos:prefLabel "Sinister Conspiracy" ;
+    rpg:description "The bad guys' plan: who they are, what they've done, what they're trying to do, and how the trigger fits. The victory condition (unknown to players) is what must happen to stop them." .
+
+gumshoe:TrailOfClues a rpg:Tag ;
+    skos:prefLabel "Trail of Clues" ;
+    rpg:description "The chain of clues leading from the investigation trigger to understanding of the sinister plot. Designed in reverse from the villain's perspective." .
+
+gumshoe:AntagonistReactions a rpg:Tag ;
+    skos:prefLabel "Antagonist Reactions" ;
+    rpg:description "Pre-planned bad guy responses to being investigated: further crimes, evidence destruction, false leads, witness intimidation, direct attacks." .
+
+gumshoe:LLM_MysteryDesign a rpg:LLMArtifact ;
+    rpg:artifactType rpg:StyleGuide ;
+    rpg:artifactScope gumshoe:GUMSHOE_SRD ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# GUMSHOE Mystery Design — LLM/GM Guide
+
+## Structure
+1. **Investigation Trigger**: The hook event.
+2. **Sinister Conspiracy**: Bad guys, their plan, how trigger fits, victory condition.
+3. **Trail of Clues**: Designed in reverse from villain's POV, leading from trigger to understanding.
+4. **Antagonist Reactions** (optional): What bad guys do when investigated.
+
+## Scene Design
+- Write scene header with: Title, Type, Lead-In scenes, Lead-Out scenes.
+- Each core scene needs at least one core clue pointing to another scene.
+- Avoid hard-sequenced core clues (only one possible order).
+- Diagram scenes with arrows; ensure multiple paths exist.
+- Use floating clues for pacing control.
+
+## Principles
+- **Err on giving information, not withholding it.**
+- If players propose a plausible alternative ability for a clue, give the clue.
+- Use the Investigative Ability Checklist to ensure wide coverage.
+- Use the GM's Investigator Roster to track abilities and spread spotlight.
+- **Never negate** player contributions. Build on them. Make players half-right.
+- When players are stuck: remind them to gather more information. Invoke drives.
+
+## Pacing Tools
+- Floating core clues (release based on fun/frustration level)
+- Timed results (lab callbacks to redirect or cut scenes)
+- SCENE card or musical sting to signal end of a scene
+- Antagonist reactions (floating danger scenes to kick up pace)
+""" .
+
+# ----------------------------------------------------------------------------
+# 13. ADVANCEMENT RULE
+# ----------------------------------------------------------------------------
+
+gumshoe:AdvancementBuildPoints a rpg:AdvancementRule ;
+    rpg:name "Session Build Points" ;
+    rpg:advancementDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "2 build points per session participated in. Spend on any ability (investigative or general). May acquire new abilities or increase existing ones. Dead characters only earn for sessions with current character." ;
+    rpg:hasLLMArtifact gumshoe:LLM_Advancement .
+
+gumshoe:LLM_Advancement a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:AdvancementBuildPoints ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "2 build points per 3-4 hour session. Adjust for shorter sessions. New abilities should be rationalized as pre-existing skills revealed later in the series, not suddenly acquired. Investigative and general abilities cost 1 build point per rating point. Exotic general abilities cost 5 for rating 1, then 1 per additional point." .
+
+# ----------------------------------------------------------------------------
+# 14. CHARACTER CREATION STRUCTURE
+# ----------------------------------------------------------------------------
+
+gumshoe:LLM_CharacterCreation a rpg:LLMArtifact ;
+    rpg:artifactType rpg:StyleGuide ;
+    rpg:artifactScope gumshoe:GUMSHOE_SRD ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# GUMSHOE Character Creation Guide
+
+## Step 1: Concept
+Choose a character concept appropriate to the setting. Some settings provide Stereotypes (flavor templates), Packages (ability minimums), or Occupations (half-price abilities + special benefits).
+
+## Step 2: Investigative Abilities
+- Points vary by group size: 2 players = 80% of x, 3 = 60%, 4 = 55%, 5+ = 50% (x = total investigative abilities in game).
+- GM ensures every ability is covered by at least one PC.
+- Even 1 rating point means high professional competence.
+- Spread widely; rarely go above 3-4 in any one ability.
+- May reserve unspent points to reveal during play.
+
+## Step 3: General Abilities
+- 60 build points regardless of group size.
+- Concentrate points; you want higher ratings here than in investigative.
+- Start with Health 1 and Stability 1 for free.
+- Second-highest rating must be >= half of highest.
+- Benchmarks: 1-3 sideline, 4-7 solid, 8+ bad-assery.
+- Rating 0 = cannot make tests (but can do mundane non-critical tasks).
+
+## Drives (optional by setting)
+Personal motivation keeping the character heroically and curiously engaged.
+
+## Packages vs Occupations
+- **Packages**: Set minimum ability requirements. Fast and simple.
+- **Occupations**: Key abilities at half-price (2 rating per 1 build point). May include Special mechanical benefits.
+""" .
+
+# ----------------------------------------------------------------------------
+# 15. HAZARDS
+# ----------------------------------------------------------------------------
+
+gumshoe:LLM_Hazards a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactScope gumshoe:GUMSHOE_SRD ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# GUMSHOE Hazards
+
+## Electricity (and similar shocks)
+- **Mild**: 1 Health lost, blown back 2m.
+- **Moderate**: 2 Health lost, lose next 4 actions (buy off at 3 Athletics each).
+- **Extreme**: 1d6+4 damage.
+- At -6 Health: cardiac arrest or brain damage.
+
+## Fire
+- **Minor** (extremity): damage modifier -2 per round.
+- **Partial** (up to half body): damage modifier +0 per round.
+- **Extensive** (half+ body): damage modifier +2 per round.
+- Extinguish DN usually 4.
+
+## Suffocation
+- 2 minutes before effects. Then lose 1 Athletics per 10 seconds. When Athletics depleted, lose 1 Health per 5 seconds.
+
+## Toxins
+- Inhaled: immediate. Injected/ingested: delayed (minutes to hours).
+- Damage modifier range: -2 (cleaning substance) to +16 (nerve gas).
+- May prevent Health refresh until neutralized.
+
+## GM Rule: Always give PCs some opportunity to avoid hazards.
+""" .
+
+# ----------------------------------------------------------------------------
+# 16. OPPONENT STATISTICS TEMPLATE
+# ----------------------------------------------------------------------------
+
+gumshoe:LLM_OpponentDesign a rpg:LLMArtifact ;
+    rpg:artifactType rpg:StyleGuide ;
+    rpg:artifactScope gumshoe:GUMSHOE_SRD ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# GUMSHOE Opponent Design
+
+## Stat Block Template
+- **Abilities**: Athletics N, Health N, Scuffling N, Shooting N (plus setting-specific)
+- **Scuffling Weapons/Damage**: weapon type +/-modifier
+- **Shooting Weapons/Damage**: weapon type +/-modifier
+- **Hit Threshold**: 3 default (2 for large/slow, 4+ for agile/small/supernatural)
+- **Armor**: Subtracted from each damage instance. May be weapon-specific.
+- **Alertness Modifier**: Applied to Infiltration/Surveillance difficulties. Second number after slash = without gear.
+- **Stealth Modifier**: Alters Surveillance difficulty to spot opponent.
+- **Attack Pattern** (optional): Suggested per-round spending. Increase after misses.
+
+## Design Principles
+- **Health = dramatic endurance**, not realistic toughness. A thug who should fall to one burst = Health 1-2.
+- **Most NPCs need only text description** — stats only for those who must be overcome through general abilities.
+- **Always consult story logic first**, attack patterns second.
+- **Player-facing**: prefer player tests over GM rolls for supporting characters.
+- **False branching**: Don't roll for NPCs when players can't affect the outcome. Just decree it happens.
+""" .
+
+# ----------------------------------------------------------------------------
+# 17. DRIVES (Optional System)
+# ----------------------------------------------------------------------------
+
+gumshoe:Drive a rpg:Tag ;
+    skos:prefLabel "Drive" ;
+    rpg:description "A personal motivation ensuring the character acts heroically and curiously within the genre. Optional system; setting-dependent." ;
+    rpg:hasLLMArtifact gumshoe:LLM_Drives .
+
+gumshoe:LLM_Drives a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactAppliesTo gumshoe:Drive ;
+    rpg:artifactFormat "plain" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText "Drives keep the story moving and characters genre-appropriate. When players are stuck or overwhelmed, the GM can invoke drives to nudge them forward. Drives are selected during character creation from a setting-specific list. Example: Altruism — instinctively acts for the benefit of others." .
+
+# ----------------------------------------------------------------------------
+# 18. CONSEQUENCE DEFINITIONS
+# ----------------------------------------------------------------------------
+
+gumshoe:DamageConsequence a rpg:Consequence ;
+    rpg:name "Damage" ;
+    rpg:consequenceDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Physical damage subtracted from Health pool. Result of combat hits, hazards, toxins." .
+
+gumshoe:StabilityLoss a rpg:Consequence ;
+    rpg:name "Stability Loss" ;
+    rpg:consequenceDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Mental damage subtracted from Stability pool. Result of disturbing incidents, supernatural encounters, traumatic events." .
+
+gumshoe:PoolDepletion a rpg:Consequence ;
+    rpg:name "Pool Depletion" ;
+    rpg:consequenceDefinedInRuleSet gumshoe:GUMSHOE_SRD ;
+    rpg:description "Spending pool points reduces future effectiveness. A consequence of action, not failure per se." .
+
+# ----------------------------------------------------------------------------
+# 19. COVER CONDITIONS (Combat Tags)
+# ----------------------------------------------------------------------------
+
+gumshoe:CoverScheme a skos:ConceptScheme ;
+    skos:prefLabel "GUMSHOE Cover Conditions" .
+
+gumshoe:Cover_Exposed a rpg:Tag ;
+    skos:prefLabel "Exposed" ;
+    skos:inScheme gumshoe:CoverScheme ;
+    rpg:description "No barrier. Hit Threshold -1." .
+
+gumshoe:Cover_Partial a rpg:Tag ;
+    skos:prefLabel "Partial Cover" ;
+    skos:inScheme gumshoe:CoverScheme ;
+    rpg:description "About half body exposed. Hit Threshold unchanged." .
+
+gumshoe:Cover_Full a rpg:Tag ;
+    skos:prefLabel "Full Cover" ;
+    skos:inScheme gumshoe:CoverScheme ;
+    rpg:description "Fully protected except when popping up to fire. Hit Threshold +1." .
+
+# ----------------------------------------------------------------------------
+# 20. POOL REFRESH RULES (LLM Summary)
+# ----------------------------------------------------------------------------
+
+gumshoe:LLM_PoolRefresh a rpg:LLMArtifact ;
+    rpg:artifactType rpg:Descriptor ;
+    rpg:artifactScope gumshoe:GUMSHOE_SRD ;
+    rpg:artifactFormat "markdown" ;
+    rpg:artifactLanguage "en" ;
+    rpg:artifactText """# Pool Refresh Rules
+| Pool Type | Refresh Rate |
+|---|---|
+| Investigative abilities | End of each case/investigation |
+| Athletics, Driving, Scuffling, Shooting | 24 hours game-world time since last spend |
+| Other general abilities | End of each case |
+| Health | 2 points per day of rest (wounded: hospitalization rules) |
+| Stability | Between cases, IF character has maintained support network |
+| Shrink-assisted Stability | 2 Stability per Shrink point spent (during play) |
+| Medic-assisted Health | 2 Health per Medic point (1:1 self-treating, up to pre-incident level) |
+
+## Pool Points Are Literary Abstractions
+Pool points represent spotlight time in an ensemble drama, not tangible in-world resources. Characters are unaware of them. Refreshment is tied to fictional constructs (episode length, case boundaries) not strict simulation.
+""" .

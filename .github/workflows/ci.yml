@@ -4,10 +4,16 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
@@ -23,5 +29,8 @@ jobs:
       - name: Build TypeScript
         run: npm run build
 
-      - name: Run tests
-        run: node --test test/http-api.test.mjs test/mcp-protocol.test.mjs
+      - name: Run HTTP API tests
+        run: npm run test:http
+
+      - name: Run MCP protocol tests
+        run: npm run test:mcp

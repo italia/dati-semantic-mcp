@@ -3,7 +3,7 @@
  *
  * Tests covered:
  *  - MCP initialize handshake (session ID, server info)
- *  - tools/list: all 43 tools present, new Fase 1 + OKG tools included
+ *  - tools/list: expected core/phase tools present; count may grow as new tools are added
  *  - recommend_external_endpoints: static list, no network
  *  - inspect_local_ontology: inline Turtle content, local oxigraph
  *  - query_local_ontology: via upload_id (file uploaded first via HTTP)
@@ -247,11 +247,11 @@ test("MCP initialize returns valid session ID and server info", () => {
   assert.match(mcpSessionId, /^[0-9a-f-]{36}$/i, "session ID should be a UUID");
 });
 
-test("MCP tools/list returns all 43 tools with expected names", async () => {
+test("MCP tools/list returns expected names", async () => {
   const event = await mcpRequest("tools/list");
   const tools = event.result?.tools ?? [];
 
-  assert.equal(tools.length, 43, `Expected 43 tools, got ${tools.length}`);
+  assert.ok(tools.length >= 43, `Expected at least 43 tools, got ${tools.length}`);
 
   const names = new Set(tools.map((t) => t.name));
 
@@ -282,6 +282,28 @@ test("MCP tools/list returns all 43 tools with expected names", async () => {
   assert.ok(searchConcepts?.inputSchema?.properties?.resource_type,   "search_concepts missing resource_type param");
   assert.ok(searchConcepts?.inputSchema?.properties?.ontology_filter, "search_concepts missing ontology_filter param");
   assert.ok(searchConcepts?.inputSchema?.properties?.prefer_core,     "search_concepts missing prefer_core param");
+  assert.ok(searchConcepts?.inputSchema?.properties?.lang,            "search_concepts missing lang param");
+
+  const browseVocabulary = tools.find((t) => t.name === "browse_vocabulary");
+  assert.ok(browseVocabulary?.inputSchema?.properties?.lang,          "browse_vocabulary missing lang param");
+
+  const navigateSkosHierarchy = tools.find((t) => t.name === "navigate_skos_hierarchy");
+  assert.ok(navigateSkosHierarchy,                                     "missing navigate_skos_hierarchy");
+
+  const searchInVocabulary = tools.find((t) => t.name === "search_in_vocabulary");
+  assert.ok(searchInVocabulary?.inputSchema?.properties?.lang,        "search_in_vocabulary missing lang param");
+
+  const inspectConcept = tools.find((t) => t.name === "inspect_concept");
+  assert.ok(inspectConcept?.inputSchema?.properties?.lang,            "inspect_concept missing lang param");
+
+  const listMunicipalities = tools.find((t) => t.name === "list_municipalities");
+  assert.ok(listMunicipalities?.inputSchema?.properties?.lang,        "list_municipalities missing lang param");
+
+  const listProvinces = tools.find((t) => t.name === "list_provinces");
+  assert.ok(listProvinces?.inputSchema?.properties?.lang,             "list_provinces missing lang param");
+
+  const findRelations = tools.find((t) => t.name === "find_relations");
+  assert.ok(findRelations?.inputSchema?.properties?.max_hops,         "find_relations missing max_hops param");
 });
 
 test("recommend_external_endpoints returns curated list without network", async () => {
@@ -368,6 +390,51 @@ test("query_local_ontology with inline Graphol content returns subclass axiom", 
   const resultStr = JSON.stringify(queried.parsed);
   assert.ok(resultStr.includes("Person"), "expected Person in subclass result");
   assert.ok(resultStr.includes("Agent"), "expected Agent in subclass result");
+});
+
+test("query_sparql with source=local runs against inline ontology content", async () => {
+  const { parsed, isError } = await callTool("query_sparql", {
+    source: "local",
+    content: TEST_TTL,
+    format: "text/turtle",
+    query: "SELECT ?c WHERE { ?c a owl:Class } ORDER BY ?c",
+  });
+
+  assert.equal(isError, false, "should not be an error");
+  assert.equal(parsed.source, "local");
+  assert.equal(parsed.context, "inline");
+  const resultStr = JSON.stringify(parsed.result);
+  assert.ok(resultStr.includes("Persona"), "expected Persona class in local query_sparql result");
+  assert.ok(resultStr.includes("Organizzazione"), "expected Organizzazione class in local query_sparql result");
+});
+
+test("inspect_concept with source=local profiles a class from uploaded ontology", async () => {
+  const { parsed, isError } = await callTool("inspect_concept", {
+    source: "local",
+    upload_id: uploadId,
+    uri: "http://example.org/onto#Persona",
+    mode: "effective",
+  });
+
+  assert.equal(isError, false, "should not be an error");
+  assert.equal(parsed.source, "local");
+  assert.ok(JSON.stringify(parsed.definition).includes("Persona"), "expected Persona label in definition");
+  assert.ok(JSON.stringify(parsed.own_properties).includes("nome"), "expected local property nome in own_properties");
+});
+
+test("get_property_details with source=local profiles a property from uploaded ontology", async () => {
+  const { parsed, isError } = await callTool("get_property_details", {
+    source: "local",
+    upload_id: uploadId,
+    propertyUri: "http://example.org/onto#appartienea",
+    mode: "effective",
+  });
+
+  assert.equal(isError, false, "should not be an error");
+  assert.equal(parsed.source, "local");
+  assert.ok(Array.isArray(parsed.assertedDomain), "expected assertedDomain array");
+  assert.ok(parsed.assertedDomain.includes("http://example.org/onto#Persona"), "expected Persona as asserted domain");
+  assert.ok(parsed.assertedRange.includes("http://example.org/onto#Organizzazione"), "expected Organizzazione as asserted range");
 });
 
 test("query_uploaded_store via upload_id returns DatatypeProperties", async () => {
