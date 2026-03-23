@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { executeTool, executeSparqlTool } from "../executor.js";
 import { sanitizeSparqlUri, sanitizeSparqlString, executeSparql, compressSparqlResult } from "../sparql.js";
-import type { CompressedResult } from "../types.js";
+import { buildConceptProfileQueries, executeNamedQueries } from "../semantic-profiles.js";
 
 // -----------------------------------------------------------------------------
 // GROUP F: Intelligent Tools
@@ -136,93 +136,12 @@ All queries run in parallel for performance.`,
   },
   async ({ uri, mode }) => {
     const safeUri = sanitizeSparqlUri(uri);
-
-    const baseQueries: Record<string, string> = {
-      definition: `
-        SELECT ?p ?o WHERE { <${safeUri}> ?p ?o . FILTER(ISLITERAL(?o)) }
-      `,
-      hierarchy: `
-        SELECT ?type ?parent ?parentLabel ?child ?childLabel WHERE {
-          { <${safeUri}> a ?type }
-          UNION
-          { <${safeUri}> rdfs:subClassOf|skos:broader ?parent .
-            OPTIONAL { ?parent rdfs:label|skos:prefLabel ?parentLabel . FILTER(LANG(?parentLabel) = "it" || LANG(?parentLabel) = "") }
-          }
-          UNION
-          { ?child rdfs:subClassOf|skos:broader <${safeUri}> .
-            OPTIONAL { ?child rdfs:label|skos:prefLabel ?childLabel . FILTER(LANG(?childLabel) = "it" || LANG(?childLabel) = "") }
-          }
-        } LIMIT 50
-      `,
-      usage: `
-        SELECT (COUNT(?s) as ?instanceCount) WHERE { ?s a <${safeUri}> }
-      `,
-      own_properties: `
-        SELECT DISTINCT ?prop ?propType ?propLabel ?range ?rangeLabel WHERE {
-          ?prop rdfs:domain <${safeUri}> .
-          OPTIONAL { ?prop a ?propType . VALUES ?propType { owl:ObjectProperty owl:DatatypeProperty owl:AnnotationProperty } }
-          OPTIONAL { ?prop rdfs:label ?propLabel . FILTER(LANG(?propLabel) = "it" || LANG(?propLabel) = "") }
-          OPTIONAL { ?prop rdfs:range ?range }
-          OPTIONAL { ?range rdfs:label|skos:prefLabel ?rangeLabel . FILTER(LANG(?rangeLabel) = "it" || LANG(?rangeLabel) = "") }
-        }
-        ORDER BY ?prop
-        LIMIT 50
-      `,
-    };
-
-    const effectiveOnlyQueries: Record<string, string> = {
-      inherited_properties: `
-        SELECT DISTINCT ?ancestor ?ancestorLabel ?prop ?propType ?propLabel ?range ?rangeLabel WHERE {
-          <${safeUri}> rdfs:subClassOf+|skos:broader+ ?ancestor .
-          FILTER(isIRI(?ancestor))
-          ?prop rdfs:domain ?ancestor .
-          OPTIONAL { ?prop a ?propType . VALUES ?propType { owl:ObjectProperty owl:DatatypeProperty owl:AnnotationProperty } }
-          OPTIONAL { ?prop rdfs:label ?propLabel . FILTER(LANG(?propLabel) = "it" || LANG(?propLabel) = "") }
-          OPTIONAL { ?prop rdfs:range ?range }
-          OPTIONAL { ?range rdfs:label|skos:prefLabel ?rangeLabel . FILTER(LANG(?rangeLabel) = "it" || LANG(?rangeLabel) = "") }
-          OPTIONAL { ?ancestor rdfs:label|skos:prefLabel ?ancestorLabel . FILTER(LANG(?ancestorLabel) = "it" || LANG(?ancestorLabel) = "") }
-        }
-        ORDER BY ?ancestor ?prop
-        LIMIT 100
-      `,
-      incoming: `
-        SELECT DISTINCT ?p ?sType WHERE {
-          ?s ?p ?o .
-          ?o a <${safeUri}> .
-          OPTIONAL { ?s a ?sType }
-        } LIMIT 20
-      `,
-      outgoing: `
-        SELECT DISTINCT ?p ?oType WHERE {
-          ?s a <${safeUri}> .
-          ?s ?p ?o .
-          OPTIONAL { ?o a ?oType }
-        } LIMIT 20
-      `,
-    };
-
-    const queries = mode === "raw"
-      ? baseQueries
-      : { ...baseQueries, ...effectiveOnlyQueries };
+    const queries = buildConceptProfileQueries(safeUri, mode);
 
     return executeTool("inspect_concept", { uri, mode }, async () => {
-      const entries = Object.entries(queries);
-      const sparqlResults = await Promise.all(
-        entries.map(([, q]) => executeSparql(q))
-      );
-
-      const results: Record<string, CompressedResult> = {};
-      for (let i = 0; i < entries.length; i++) {
-        const entry = entries[i];
-        const sparqlResult = sparqlResults[i];
-        if (entry && sparqlResult) {
-          results[entry[0]] = compressSparqlResult(sparqlResult);
-        }
-      }
-
-      const totalRows = sparqlResults.reduce(
-        (sum, r) => sum + (r?.results?.bindings?.length ?? 0),
-        0
+      const { results, totalRows } = await executeNamedQueries(
+        queries,
+        async (query) => executeSparql(query)
       );
 
       return {

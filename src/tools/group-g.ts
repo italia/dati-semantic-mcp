@@ -2,6 +2,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { executeTool, executeSparqlTool } from "../executor.js";
 import { sanitizeSparqlUri, sanitizeSparqlString, executeSparql, compressSparqlResult } from "../sparql.js";
+import {
+  buildPropertyDefinitionQuery,
+  buildPropertySuperQuery,
+  extractAssertedDomainRange,
+  collectPropertySuperMap,
+  buildPropertyInheritance,
+  buildRedundancyAnalysis,
+} from "../semantic-profiles.js";
 
 // -----------------------------------------------------------------------------
 // GROUP G: Properties & Instances
@@ -120,23 +128,7 @@ server.registerTool(
   },
   async ({ propertyUri, mode }) => {
     const safeUri = sanitizeSparqlUri(propertyUri);
-
-    const definitionQuery = `
-      SELECT ?p ?o
-      WHERE {
-        <${safeUri}> ?p ?o .
-        FILTER(?p IN (
-          rdf:type,
-          rdfs:label,
-          rdfs:comment,
-          rdfs:domain,
-          rdfs:range,
-          rdfs:subPropertyOf,
-          owl:inverseOf,
-          owl:equivalentProperty
-        ) || ?p = rdf:type && ?o IN (owl:FunctionalProperty, owl:InverseFunctionalProperty, owl:SymmetricProperty, owl:TransitiveProperty))
-      }
-    `;
+    const definitionQuery = buildPropertyDefinitionQuery(safeUri);
 
     return executeTool<unknown>("get_property_details", { propertyUri, mode }, async () => {
       const defResult = await executeSparql(definitionQuery);
@@ -149,128 +141,42 @@ server.registerTool(
         };
       }
 
-      // effective mode: also query super-property chain with domain/range per ancestor
-      const superQuery = `
-        SELECT DISTINCT ?ancestor ?ancestorLabel ?domain ?range WHERE {
-          <${safeUri}> rdfs:subPropertyOf+ ?ancestor .
-          FILTER(isIRI(?ancestor))
-          OPTIONAL { ?ancestor rdfs:label ?ancestorLabel . FILTER(LANG(?ancestorLabel) = "" || LANG(?ancestorLabel) = "it") }
-          OPTIONAL { ?ancestor rdfs:domain ?domain }
-          OPTIONAL { ?ancestor rdfs:range ?range }
-        }
-        ORDER BY ?ancestor
-        LIMIT 50
-      `;
+      const superQuery = buildPropertySuperQuery(safeUri, 50);
       const superResult = await executeSparql(superQuery);
-
-      // Extract asserted domain / range from definition
-      const RDFS_DOMAIN = "http://www.w3.org/2000/01/rdf-schema#domain";
-      const RDFS_RANGE  = "http://www.w3.org/2000/01/rdf-schema#range";
-      const assertedDomain: string[] = [];
-      const assertedRange:  string[] = [];
-      for (const b of defResult.results?.bindings ?? []) {
-        if (b.p?.value === RDFS_DOMAIN && b.o?.value) assertedDomain.push(b.o.value);
-        if (b.p?.value === RDFS_RANGE  && b.o?.value) assertedRange.push(b.o.value);
-      }
-
-      // Build super-property map
-      type SuperInfo = { uri: string; label: string; domains: string[]; ranges: string[] };
-      const superMap = new Map<string, SuperInfo>();
-      for (const b of superResult.results?.bindings ?? []) {
-        const aUri = b.ancestor?.value ?? "";
-        if (!aUri) continue;
-        if (!superMap.has(aUri)) superMap.set(aUri, { uri: aUri, label: "", domains: [], ranges: [] });
-        const info = superMap.get(aUri)!;
-        if (b.ancestorLabel?.value && !info.label) info.label = b.ancestorLabel.value;
-        if (b.domain?.value && !info.domains.includes(b.domain.value)) info.domains.push(b.domain.value);
-        if (b.range?.value  && !info.ranges.includes(b.range.value))   info.ranges.push(b.range.value);
-      }
-
-      // Build inherited lists (annotated with ancestor)
-      const inheritedDomain: Array<{ ancestor: string; ancestorLabel: string; domain: string }> = [];
-      const inheritedRange:  Array<{ ancestor: string; ancestorLabel: string; range:  string }> = [];
-      for (const info of superMap.values()) {
-        for (const d of info.domains) inheritedDomain.push({ ancestor: info.uri, ancestorLabel: info.label, domain: d });
-        for (const r of info.ranges)  inheritedRange.push({ ancestor: info.uri,  ancestorLabel: info.label, range:  r });
-      }
-
-      // Effective = deduplicated union
-      const effectiveDomain = [...new Set([...assertedDomain, ...inheritedDomain.map(x => x.domain)])];
-      const effectiveRange  = [...new Set([...assertedRange,  ...inheritedRange.map(x => x.range)])];
-
-      const superproperties = [...superMap.values()].map(info => ({
-        uri: info.uri,
-        label: info.label,
-        hasDomainLocally: info.domains.length > 0,
-        hasRangeLocally:  info.ranges.length  > 0,
-      }));
-
-      // Redundancy analysis
-      type AnalysisEntry = {
-        value: string;
-        status: "redundant" | "specialization" | "new";
-        inherited_match?: string;
-        specializes?: string[];
-      };
-
-      const inheritedDomainValues = new Set(inheritedDomain.map(x => x.domain));
-      const inheritedRangeValues  = new Set(inheritedRange.map(x => x.range));
-
-      const classifyInitial = (asserted: string[], inheritedValues: Set<string>): AnalysisEntry[] =>
-        asserted.map(v => inheritedValues.has(v)
-          ? { value: v, status: "redundant" as const, inherited_match: v }
-          : { value: v, status: "new" as const }
-        );
-
-      let domainAnalysis = classifyInitial(assertedDomain, inheritedDomainValues);
-      let rangeAnalysis  = classifyInitial(assertedRange,  inheritedRangeValues);
-
-      // Subclass check for "new" candidates → may be specializations
-      const domainCandidates = domainAnalysis.filter(e => e.status === "new").map(e => e.value);
-      const rangeCandidates  = rangeAnalysis.filter(e => e.status === "new").map(e => e.value);
-      const allCandidates    = [...new Set([...domainCandidates, ...rangeCandidates])];
-      const allInherited     = [...new Set([...inheritedDomainValues, ...inheritedRangeValues])];
-
-      if (allCandidates.length > 0 && allInherited.length > 0) {
-        const vSub = allCandidates.map(u => `<${u}>`).join(" ");
-        const vSup = allInherited.map(u => `<${u}>`).join(" ");
-        const subResult = await executeSparql(`
-          SELECT ?sub ?sup WHERE {
-            VALUES ?sub { ${vSub} }
-            VALUES ?sup { ${vSup} }
-            ?sub rdfs:subClassOf+ ?sup .
+      const { assertedDomain, assertedRange } = extractAssertedDomainRange(defResult);
+      const superMap = collectPropertySuperMap(superResult);
+      const { inheritedDomain, inheritedRange, superproperties } = buildPropertyInheritance(superMap);
+      const effectiveDomain = [...new Set([...assertedDomain, ...inheritedDomain.map((x) => x.domain)])];
+      const effectiveRange = [...new Set([...assertedRange, ...inheritedRange.map((x) => x.range)])];
+      const redundancy_analysis = await buildRedundancyAnalysis(
+        assertedDomain,
+        assertedRange,
+        inheritedDomain,
+        inheritedRange,
+        async (candidates, inherited) => {
+          if (candidates.length === 0 || inherited.length === 0) {
+            return new Map<string, string[]>();
           }
-        `);
-        const subMap = new Map<string, string[]>();
-        for (const b of subResult.results?.bindings ?? []) {
-          const sub = b.sub?.value ?? "", sup = b.sup?.value ?? "";
-          if (!sub || !sup) continue;
-          if (!subMap.has(sub)) subMap.set(sub, []);
-          subMap.get(sub)!.push(sup);
-        }
-        const upgrade = (entries: AnalysisEntry[], inheritedValues: Set<string>): AnalysisEntry[] =>
-          entries.map(e => {
-            if (e.status !== "new") return e;
-            const supers = (subMap.get(e.value) ?? []).filter(s => inheritedValues.has(s));
-            return supers.length > 0 ? { value: e.value, status: "specialization" as const, specializes: supers } : e;
-          });
-        domainAnalysis = upgrade(domainAnalysis, inheritedDomainValues);
-        rangeAnalysis  = upgrade(rangeAnalysis,  inheritedRangeValues);
-      }
 
-      const count = (entries: AnalysisEntry[], s: string) => entries.filter(e => e.status === s).length;
-      const redundancy_analysis = {
-        domain: domainAnalysis,
-        range:  rangeAnalysis,
-        summary: {
-          domain_redundant:      count(domainAnalysis, "redundant"),
-          domain_specialization: count(domainAnalysis, "specialization"),
-          domain_new:            count(domainAnalysis, "new"),
-          range_redundant:       count(rangeAnalysis,  "redundant"),
-          range_specialization:  count(rangeAnalysis,  "specialization"),
-          range_new:             count(rangeAnalysis,  "new"),
-        },
-      };
+          const subclassResult = await executeSparql(`
+            SELECT ?sub ?sup WHERE {
+              VALUES ?sub { ${candidates.map((uri) => `<${uri}>`).join(" ")} }
+              VALUES ?sup { ${inherited.map((uri) => `<${uri}>`).join(" ")} }
+              ?sub rdfs:subClassOf+ ?sup .
+            }
+          `);
+
+          const subclassMap = new Map<string, string[]>();
+          for (const binding of subclassResult.results?.bindings ?? []) {
+            const sub = binding.sub?.value ?? "";
+            const sup = binding.sup?.value ?? "";
+            if (!sub || !sup) continue;
+            if (!subclassMap.has(sub)) subclassMap.set(sub, []);
+            subclassMap.get(sub)!.push(sup);
+          }
+          return subclassMap;
+        }
+      );
 
       const totalRows =
         (defResult.results?.bindings?.length ?? 0) +
