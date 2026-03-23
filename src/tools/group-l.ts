@@ -24,6 +24,11 @@ server.registerTool(
 
 **Why this matters:** Reading the file and sending its content through the AI conversation wastes tokens and may hit context limits. curl sends the raw bytes directly from the filesystem to the server — the AI never sees the content.
 
+**When to use this vs X:**
+- use this only when the file is on the client machine and the MCP server cannot read it directly
+- if the server can already read the file, prefer \`file_path\` on the local ontology tools
+- if the file is small and you only need a quick summary, \`inspect_local_ontology\` with \`content + format\` may be enough
+
 **HTTP mode only:** This workflow requires the MCP server to be running in HTTP mode (\`MCP_TRANSPORT=http\`). In stdio mode the HTTP endpoint is not available; use the \`content\` parameter of \`inspect_local_ontology\` for small files instead.
 
 **Docker / reverse-proxy:** Set the \`MCP_PUBLIC_URL\` env var to the externally reachable base URL (e.g. \`http://localhost:8080\`). Without it, the tool falls back to the internal bind address which may be unreachable from outside the container.
@@ -119,6 +124,12 @@ server.registerTool(
 - The MCP server is remote, containerized, or otherwise cannot read the user's local filesystem.
 - A previous \`file_path\` attempt failed because the path only exists on the client machine.
 - You want to send raw file bytes directly without consuming model tokens.
+
+**When to use this vs X:**
+- prefer \`query_local_ontology\` with \`upload_id\` for the main MCP workflow
+- use this only if you already have the upload store id and explicitly want to query that temporary store directly
+
+**Deprecated direction:** this is an upload-specific shortcut; for new agent flows prefer \`query_local_ontology\` with \`upload_id\`
 
 **Supported Content-Types for upload:** text/turtle, application/rdf+xml, application/n-triples, application/ld+json, application/graphol+xml
 

@@ -110,7 +110,16 @@ server.registerTool(
 
 **Examples:**
 - Query DBpedia: endpointUrl="https://dbpedia.org/sparql"
-- Query EU Publications Office: endpointUrl="https://publications.europa.eu/webapi/rdf/sparql"`,
+- Query EU Publications Office: endpointUrl="https://publications.europa.eu/webapi/rdf/sparql"
+
+**When to use this vs X:**
+- vs \`query_sparql\`: use this only for an external HTTPS endpoint; use \`query_sparql\` for the built-in \`schema.gov.it\` endpoint
+- vs \`explore_external_endpoint\`: use this when you already know the query you want to run; use \`explore_external_endpoint\` first if you just need a structural overview
+
+**Do not use this if:**
+- you want to query \`schema.gov.it\` itself → use \`query_sparql\`
+- you want a curated shortlist of endpoints → use \`recommend_external_endpoints\`
+- you only need endpoints already linked in the catalog metadata → use \`list_linked_endpoints\``,
     inputSchema: {
       endpointUrl: z.string().describe("URL of the target SPARQL endpoint (HTTPS required)"),
       query: z.string().describe("SPARQL query to execute"),

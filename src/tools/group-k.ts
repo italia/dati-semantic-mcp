@@ -103,6 +103,11 @@ server.registerTool(
     title: "Query Local Ontology",
     description: `Execute a SPARQL SELECT query against an ontology available on the server filesystem or through HTTP upload.
 
+**Quale modalita di input usare:**
+- stdio / stessa macchina → \`file_path\`
+- server remoto, file grande → \`get_upload_instructions\` + \`upload_id\`
+- server remoto, file piccolo (<1 MB) → usa \`inspect_local_ontology\` con \`content + format\` per l'analisi; per query ripetute preferisci upload + \`upload_id\`
+
 **Args (provide exactly one of file_path or upload_id):**
 - file_path: Absolute path on the MCP server filesystem. Use only if the server can really read that path.
 - upload_id: UUID returned by POST /upload. Use this in HTTP/remote mode when the file is local to the client, not the server.
@@ -116,6 +121,14 @@ server.registerTool(
 
 **Returns:**
 - Compressed SPARQL results (tabular for >5 rows, compact for ≤5 rows)
+
+**When to use this vs X:**
+- vs \`query_sparql\`: use this for a local/uploaded ontology; use \`query_sparql\` for the default remote catalog
+- vs \`query_uploaded_store\`: prefer this tool when you already have an \`upload_id\`; \`query_uploaded_store\` is only a thinner upload-specific path
+
+**Do not use this if:**
+- you need a standard profile of a concept or property → use \`inspect_local_concept\` or \`inspect_local_property\`
+- you just need a summary of the ontology → use \`inspect_local_ontology\`
 
 **Supported formats:** .ttl (Turtle), .owl / .rdf (RDF/XML), .nt (N-Triples), .jsonld (JSON-LD), .graphol (Graphol XML)
 **Efficiency:** File is cached after first load; repeated queries on the same unchanged file skip re-parsing.
@@ -155,10 +168,17 @@ server.registerTool(
 2. If file_path fails for any reason → call \`get_upload_instructions\` with the local path, execute the returned curl command via Bash tool, parse the \`id\` from the JSON response, then call this tool again with \`upload_id\`.
 3. NEVER read the file content and pass it through the conversation. NEVER attempt to parse or analyse the TTL text manually. The upload workflow sends raw bytes directly from disk to server without the AI ever seeing the content — it is always faster, cheaper, and more reliable.
 
+**Quale modalita di input usare:**
+- stdio / stessa macchina → \`file_path\`
+- server remoto, file grande → \`get_upload_instructions\` + \`upload_id\`
+- server remoto, file piccolo (<1 MB) → valuta \`content + format\` con \`inspect_local_ontology\`, poi passa a upload se servono query ripetute
+
 **Args:**
 - uri: URI of the class/concept to inspect
 - file_path / upload_id: exactly one (see workflow above)
 - mode: "raw" | "effective" (default: "effective")
+
+**Tip:** Use \`search_concepts\` first if you are checking whether a similar concept already exists in \`schema.gov.it\`. Use this tool only after you know you want to inspect the local/uploaded ontology.
 
 **mode: "raw"** — only triples explicitly present in the local file:
 - definition, hierarchy, usage, own_properties (rdfs:domain asserted directly on this class)
@@ -175,6 +195,10 @@ server.registerTool(
 - Properties applicable only via owl:restriction or anonymous class expressions are NOT shown — use query_local_ontology for those
 
 **Limitation with owl:imports:** inherited_properties traverses only superclasses present in the local file. Classes from imported external ontologies (e.g. l0:, COV:, CPV:) are absent from the local store unless the file includes them. For complete property semantics of a property that subPropertyOf an external one, use inspect_local_property instead — it falls back to schema.gov.it for missing super-properties.
+
+**When to use this vs X:**
+- vs \`inspect_concept\`: use this for a local or uploaded ontology; use \`inspect_concept\` for the remote \`schema.gov.it\` catalog
+- vs \`query_local_ontology\`: use this when you want the standard profile of one concept; use \`query_local_ontology\` only for custom SPARQL questions not covered here
 
 **Unicode SPARQL note:** oxigraph rejects prefixed names with non-ASCII local parts (e.g. \`myont:modalità_cup\`). Always use full URIs in angle brackets (\`<https://...#modalità_cup>\`) for properties or classes with Unicode in the local name.`,
     inputSchema: {
@@ -299,6 +323,13 @@ server.registerTool(
 2. If file_path fails for any reason → call \`get_upload_instructions\` with the local path, execute the returned curl command via Bash tool, parse the \`id\` from the JSON response, then call this tool again with \`upload_id\`.
 3. NEVER read the file content and pass it through the conversation. NEVER attempt to parse or analyse the TTL text manually. The upload workflow sends raw bytes directly from disk to server without the AI ever seeing the content — it is always faster, cheaper, and more reliable.
 
+**Quale modalita di input usare:**
+- stdio / stessa macchina → \`file_path\`
+- server remoto, file grande → \`get_upload_instructions\` + \`upload_id\`
+- server remoto, file piccolo (<1 MB) → valuta \`content + format\` con \`inspect_local_ontology\`, poi passa a upload se servono query ripetute
+
+**Tip:** Use \`search_concepts\` first if you are checking whether an equivalent property already exists in \`schema.gov.it\`. Use this tool only after you know you want to inspect the local/uploaded ontology.
+
 **Returns:**
 - definition: direct attributes from the local store (type, label, comment, subPropertyOf, inverseOf, functional flags)
 - assertedDomain: rdfs:domain declared directly on this property in the local file
@@ -315,12 +346,16 @@ server.registerTool(
   - "redundant": identical to an inherited value — the axiom can be dropped without semantic loss
   - "specialization": a rdfs:subClassOf of an inherited value — genuinely narrows the domain/range
   - "new": not present in any inherited value — adds information not implied by the super-property chain
-  - summary counts per category for quick overview
+- summary counts per category for quick overview
 - warnings: super-properties not resolved, remote lookup failures
 
 **owl:imports handling:** The local store typically does NOT contain imported ontologies (owl:imports declarations are not followed automatically). Super-properties from external namespaces (e.g. l0:name, l0:description from OntoPiA) are resolved against schema.gov.it automatically, making the effective semantics complete without requiring the full import chain to be loaded.
 
 **Use case — subproperty chains:** For properties like \`ha_cup_collegato_per_fusione rdfs:subPropertyOf ha_cup_collegato\`, this tool shows whether domain/range are asserted directly, inherited from \`ha_cup_collegato\`, or need remote resolution. For \`subPropertyOf l0:name\`, it fetches l0:name's domain/range from schema.gov.it and shows it as source "remote".
+
+**When to use this vs X:**
+- vs \`get_property_details\`: use this for a local or uploaded ontology; use \`get_property_details\` for a property already published in the remote \`schema.gov.it\` catalog
+- vs \`query_local_ontology\`: use this when you want the standard semantic profile of one property; use \`query_local_ontology\` only for custom SPARQL questions not covered here
 
 **Unicode SPARQL note:** oxigraph rejects prefixed names with non-ASCII local parts. For properties with Unicode in the local name (e.g. \`myont:modalità_cup\`), always pass the full URI in angle brackets (\`<https://...#modalità_cup>\`).`,
     inputSchema: {

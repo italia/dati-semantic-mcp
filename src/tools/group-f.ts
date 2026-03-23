@@ -26,7 +26,11 @@ server.registerTool(
 **Returns:**
 - Matching subjects with type and label
 
-**Use when:** You don't know the exact URI of a concept. Use resource_type and ontology_filter to reduce noise.`,
+**When to use this vs X:**
+- use this when you do not know the exact URI yet
+- vs \`search_in_vocabulary\`: use this to search across the whole catalog; use \`search_in_vocabulary\` or \`browse_vocabulary\` only when the ConceptScheme is already known
+
+**Use when:** You don't know the exact URI of a concept. Use \`resource_type\` and \`ontology_filter\` to reduce noise.`,
     inputSchema: {
       keyword: z.string().describe("The search term (e.g. 'amministrazione')"),
       limit: z.number().optional().default(10),
@@ -87,6 +91,8 @@ server.registerTool(
 - uri: URI of the concept to inspect
 - mode: "raw" | "effective" (default: "effective")
 
+**Tip:** Use \`search_concepts\` first if you do not know the URI.
+
 **mode: "raw"** — only explicitly asserted triples:
 - definition: literal annotations (label, comment, definition…)
 - hierarchy: direct type, parent classes (rdfs:subClassOf / skos:broader), child classes
@@ -107,6 +113,11 @@ server.registerTool(
 - owl:equivalentClass: not expanded (equivalent classes share all properties but this tool shows only the rdfs:subClassOf chain)
 - owl:unionOf / owl:intersectionOf: not traversed (anonymous class expressions)
 - owl:imports: schema.gov.it resolves these server-side; the endpoint already includes imported triples
+
+**When to use this vs X:**
+- vs \`inspect_local_concept\`: use this for concepts already in the remote \`schema.gov.it\` catalog; use \`inspect_local_concept\` for a local/uploaded ontology
+- vs \`describe_resource\`: use this for a semantic profile (hierarchy, inherited properties, usage); use \`describe_resource\` for the raw RDF dump of a resource
+- vs \`query_sparql\`: use this when you want the standard profile of one concept; use \`query_sparql\` only for custom questions not covered here
 
 All queries run in parallel for performance.`,
     inputSchema: {
@@ -350,6 +361,10 @@ server.registerTool(
 
 **Returns:**
 - All properties and values of the resource
+
+**When to use this vs X:**
+- vs \`inspect_concept\`: use this when you need the raw RDF description of a resource; use \`inspect_concept\` when you want a semantic profile with hierarchy, usage, and inherited properties
+- vs \`query_sparql\`: use this for the standard CBD dump of one resource; use \`query_sparql\` only for custom graph patterns not covered here
 
 **Use when:** You need the complete RDF description of a specific resource.`,
     inputSchema: {

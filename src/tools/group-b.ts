@@ -24,7 +24,11 @@ server.registerTool(
 
 **Examples:**
 - No args: Global coverage statistics
-- targetUri="http://...#Person": Coverage for Person class`,
+- targetUri="http://...#Person": Coverage for Person class
+
+**How to interpret the two modes:**
+- without \`targetUri\` = heatmap of the catalog, useful to see which types are most used overall
+- with \`targetUri\` = targeted coverage analysis for one URI`,
     inputSchema: {
       targetUri: z.string().optional().describe("URI of class or property to check coverage for"),
     },

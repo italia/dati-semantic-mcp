@@ -76,6 +76,8 @@ server.registerTool(
 - propertyUri: URI of the property
 - mode: "raw" | "effective" (default: "effective")
 
+**Tip:** Use \`search_concepts\` first if you do not know the URI.
+
 **mode: "raw"** — only explicitly asserted triples:
 - definition: type, label, comment, rdfs:domain, rdfs:range, rdfs:subPropertyOf, owl:inverseOf, functional flags
 
@@ -97,7 +99,11 @@ server.registerTool(
 - If assertedDomain is empty but effectiveDomain is not → domain is inherited; no need to re-assert it on this property
 - If assertedDomain equals effectiveDomain → the domain is fully explicit, not relying on inheritance
 - Use redundancy_analysis.summary to immediately see if the local TTL has redundant axioms or genuine specializations
-- owl:equivalentProperty and owl:equivalentClass expansions are not included (use query_sparql for those)`,
+- owl:equivalentProperty and owl:equivalentClass expansions are not included (use query_sparql for those)
+
+**When to use this vs X:**
+- vs \`inspect_local_property\`: use this for a property already published in \`schema.gov.it\`; use \`inspect_local_property\` for a local/uploaded ontology
+- vs \`query_sparql\`: use this for the standard semantic profile of one property; use \`query_sparql\` only for custom questions not covered here`,
     inputSchema: {
       propertyUri: z.string().describe("URI of the property to inspect"),
       mode: z.enum(["raw", "effective"]).optional().default("effective").describe(
@@ -305,6 +311,10 @@ server.registerTool(
 **Returns:**
 - concepts: List of concepts with code and label
 - pagination: Total count, offset, has_more
+
+**When to use this vs X:**
+- vs \`search_in_vocabulary\`: this is the preferred default for exploring a known ConceptScheme because it supports pagination and optional \`keyword\`
+- use \`search_in_vocabulary\` only for a lightweight keyword lookup when pagination is not needed
 
 **Use for:** Large vocabularies that need pagination (e.g., ICD codes, municipalities)`,
     inputSchema: {
