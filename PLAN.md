@@ -177,11 +177,17 @@ Problema osservato: oggi alcuni agenti vanno in confusione non perché i tool ma
 Problema osservato: `inspect_concept`/`inspect_local_concept` e `get_property_details`/`inspect_local_property` duplicano query e logica, con rischio di drift funzionale e differenze di performance/comportamento.
 
 - [ ] Estrarre moduli condivisi per costruzione query e post-processing:
+- [x] Estrarre moduli condivisi per costruzione query e post-processing:
   - profile concetto (`definition`, `hierarchy`, `usage`, `own_properties`, `inherited_properties`, `incoming`, `outgoing`)
   - profile proprietà (`definition`, `assertedDomain`, `assertedRange`, `superproperties`, `effectiveDomain`, `effectiveRange`, `redundancy_analysis`)
-- [ ] Introdurre un adapter/runner astratto (`execute query`, `compress result`) riusabile da backend remoto e locale
-- [ ] Fare in modo che il ramo locale erediti gli stessi miglioramenti del ramo remoto senza copiare query in due file
-- [ ] Uniformare anche il comportamento prestazionale: dove oggi il remoto parallelizza e il locale no, portare i due rami a una strategia coerente
+- [x] Introdurre un adapter/runner astratto (`execute query`, `compress result`) riusabile da backend remoto e locale
+- [x] Fare in modo che il ramo locale erediti gli stessi miglioramenti del ramo remoto senza copiare query in due file
+- [x] Uniformare anche il comportamento prestazionale: dove oggi il remoto parallelizza e il locale no, portare i due rami a una strategia coerente
+
+Nota implementativa completata:
+- modulo condiviso introdotto in `src/semantic-profiles.ts`
+- `inspect_concept` e `inspect_local_concept` ora usano lo stesso builder di query e lo stesso runner astratto
+- `get_property_details` e `inspect_local_property` condividono definizione query, estrazione asserted domain/range, inheritance e redundancy analysis
 
 ### 5.4 Modalità `source` / `hybrid` sui tool core
 **Effort: Alto | Impatto: Alto | Priorità: Alta**
