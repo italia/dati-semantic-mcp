@@ -25,6 +25,17 @@ server.registerTool(
 - \`SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10\`
 - \`SELECT ?class (COUNT(?s) AS ?count) WHERE { ?s a ?class } GROUP BY ?class\`
 
+**When to use this vs X:**
+- vs \`query_local_ontology\`: use this for the default remote catalog \`schema.gov.it\`; use \`query_local_ontology\` for a file/store loaded locally or via \`upload_id\`
+- vs \`query_external_endpoint\`: use this for the built-in \`schema.gov.it\` endpoint; use \`query_external_endpoint\` only for another HTTPS SPARQL endpoint
+- vs specialized tools: use this only when no dedicated tool already covers the task
+
+**Do not use this if:**
+- you need a concept profile → use \`inspect_concept\`
+- you need property semantics → use \`get_property_details\`
+- you need to search by keyword without a known URI → use \`search_concepts\`
+- you need to browse a vocabulary or dataset → use the dedicated vocabulary/dataset tools
+
 **Note:** Use this for ad-hoc exploration. Prefer specialized tools for common operations.`,
     inputSchema: {
       query: z.string().describe("The SPARQL query to execute"),
@@ -95,7 +106,11 @@ server.registerTool(
 - graphs: List of named graphs in the endpoint
 - ontologies: List of owl:Ontology and skos:ConceptScheme resources
 
-**Note:** Both queries run in parallel for performance.`,
+**When to use this vs X:**
+- use this for a quick structural overview of the endpoint
+- use \`list_ontologies\` or \`list_vocabularies\` when you want richer, more task-oriented views of ontologies or vocabularies
+
+**Note:** This tool returns TWO lists in one call (named graphs + ontology/vocabulary resources). Both queries run in parallel for performance.`,
     inputSchema: {},
     annotations: {
       readOnlyHint: true,

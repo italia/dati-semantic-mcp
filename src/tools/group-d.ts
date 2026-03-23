@@ -58,7 +58,13 @@ server.registerTool(
 - limit: Maximum results (default: 20)
 
 **Returns:**
-- Matching concepts with labels and optional notation codes`,
+- Matching concepts with labels and optional notation codes
+
+**When to use this vs X:**
+- vs \`browse_vocabulary\`: use this only for a quick keyword search inside a scheme you already know
+- \`browse_vocabulary\` is usually the better default because it supports pagination and already accepts \`keyword\`
+
+**Deprecated:** Prefer \`browse_vocabulary\` with the \`keyword\` parameter.`,
     inputSchema: {
       schemeUri: z.string().describe("The URI of the ConceptScheme (from list_vocabularies)"),
       keyword: z.string().describe("The search keyword"),

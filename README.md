@@ -10,10 +10,10 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 ## Strumenti disponibili
 
-Il server espone **44 strumenti** organizzati in 13 categorie:
+Il server espone **43 strumenti** organizzati in 13 categorie:
 
 ### 1. Operazioni Base
-*   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint. Utile per esplorazione ad-hoc.
+*   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint remoto di `schema.gov.it`. Usalo solo se nessun tool specializzato copre gia' la domanda.
 *   `explore_catalog`: Elenca i grafi e le ontologie disponibili nell'endpoint.
 *   `explore_classes`: Elenca le classi disponibili con conteggio istanze, con filtro opzionale.
 
@@ -28,8 +28,8 @@ Il server espone **44 strumenti** organizzati in 13 categorie:
 
 ### 4. Vocabolari Controllati (Reference Data)
 *   `list_vocabularies`: Elenca i vocabolari controllati disponibili (ConceptScheme) con conteggio istanze.
-*   `search_in_vocabulary`: Cerca concetti all'interno di un vocabolario specifico.
-*   `browse_vocabulary`: Naviga un vocabolario con paginazione (utile per vocabolari grandi come codici ICD, comuni).
+*   `search_in_vocabulary`: Cerca concetti all'interno di un vocabolario specifico. Tool legacy: nella maggior parte dei casi e' meglio `browse_vocabulary` con `keyword`.
+*   `browse_vocabulary`: Naviga un vocabolario con paginazione ed e' il default consigliato quando conosci gia' il ConceptScheme.
 
 ### 5. Cataloghi e Dataset (Dati)
 *   `list_datasets`: Elenca i dataset DCAT-AP_IT disponibili.
@@ -39,15 +39,15 @@ Il server espone **44 strumenti** organizzati in 13 categorie:
 Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il catalogo contiene soprattutto asset semantici pubblicati come dataset DCAT-AP_IT, ad esempio ontologie, vocabolari controllati e relative distribuzioni. Per esplorare `schema.gov.it` conviene di norma partire da ontologie, vocabolari, classi, proprietà e query SPARQL; i tool dataset sono più indicati per cataloghi esterni o per casi DCAT-AP_IT specifici.
 
 ### 6. Intelligence (Avanzato)
-*   `search_concepts`: **Ricerca fuzzy**. Trova concetti (es. "Scuola") senza conoscere l'URI esatto.
-*   `inspect_concept`: **Deep Dive**. Ottiene in un colpo solo definizione, gerarchia, usage stats e vicini di un concetto.
+*   `search_concepts`: **Ricerca fuzzy**. Trova concetti (es. "Scuola") senza conoscere l'URI esatto; spesso e' il primo passo prima di `inspect_concept` o `get_property_details`.
+*   `inspect_concept`: **Deep Dive**. Ottiene in un colpo solo definizione, gerarchia, usage stats e vicini di un concetto del catalogo remoto.
 *   `find_relations`: **Pathfinding**. Scopre come due concetti sono collegati (link diretto o via 1 intermediario).
 *   `suggest_improvements`: Euristiche per trovare anomalie strutturali nell'ontologia (classi orfane, cicli).
 *   `describe_resource`: **CBD**. Ottiene tutte le triple di una risorsa (Concise Bounded Description).
 
 ### 7. Proprieta e Relazioni
 *   `list_properties`: Elenca ObjectProperty e DatatypeProperty con dominio e range.
-*   `get_property_details`: Ottiene dettagli completi di una proprietà (dominio, range, inverse, functional).
+*   `get_property_details`: Ottiene dettagli completi di una proprieta del catalogo remoto (dominio, range, inverse, functional).
 *   `list_instances_of_class`: Elenca le istanze di una classe presente nel catalogo.
 *   `find_recommended_scheme_for_property`: Suggerisce il ConceptScheme più adatto per i valori controllati di una proprietà.
 
@@ -60,19 +60,37 @@ Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il
 ### 9. Endpoint SPARQL Esterni (linked data)
 *   `recommend_external_endpoints`: Restituisce una short list curata di endpoint SPARQL pubblici utili da usare insieme a `schema.gov.it`.
 *   `list_linked_endpoints`: Scopre gli endpoint SPARQL collegati al catalogo via `dcat:DataService`.
-*   `query_external_endpoint`: Esegue una query SPARQL su qualsiasi endpoint HTTPS pubblico, con compressione del risultato per ridurre i token.
+*   `query_external_endpoint`: Esegue una query SPARQL su qualsiasi endpoint HTTPS pubblico esterno. Non usarlo per `schema.gov.it`: in quel caso usa `query_sparql`.
 *   `find_external_alignments`: Trova i mapping verso risorse esterne (Eurostat, DBpedia, ecc.).
 *   `explore_external_endpoint`: Esplora la struttura di un endpoint esterno (classi e conteggi).
 
 ### 10. Ontologia Locale
 *   `inspect_local_ontology`: Carica e riassume un'ontologia RDF/OWL disponibile al server via `file_path`, contenuto inline o `upload_id`. Attenzione: `file_path` indica sempre un path leggibile dal server MCP, non dal laptop dell'utente.
-*   `inspect_local_concept`: **Deep dive su una classe** (locale o caricata). Parametro `mode`: `raw` (solo triple esplicite: definition, hierarchy, usage, own_properties) oppure `effective` (default, aggiunge inherited_properties via `rdfs:subClassOf+`/`skos:broader+` e incoming/outgoing). Distingue chiaramente proprietà con dominio asserted su questa classe da quelle ereditate dalle superclassi. Limite: traversa solo le superclassi presenti nel file locale; per le proprietà con super-proprietà esterne usa `inspect_local_property`.
+*   `inspect_local_concept`: **Deep dive su una classe** (locale o caricata). E' il corrispettivo locale di `inspect_concept`: usalo quando l'ontologia non e' ancora parte di `schema.gov.it`.
 *   `inspect_local_property`: **Deep dive su una proprietà** (locale o caricata). Espone separatamente: `assertedDomain`/`assertedRange` (dichiarati nel file), `inheritedDomain`/`inheritedRange` (da super-proprietà via `rdfs:subPropertyOf+`, con indicazione dell'antenato), `effectiveDomain`/`effectiveRange` (unione). Per super-proprietà non presenti nel file locale (es. l0:name, l0:description da ontologie importate), interroga automaticamente schema.gov.it come fallback. Ogni super-proprietà è marcata con source `local` | `remote` | `not-found`. Include nota sul limite Unicode nei nomi locali SPARQL con oxigraph.
-*   `query_local_ontology`: Esegue una query SPARQL SELECT su un'ontologia accessibile dal server o caricata prima via `POST /upload`. Prefissi standard iniettati automaticamente. Risultati compressi come gli altri tool.
+*   `query_local_ontology`: Esegue una query SPARQL SELECT su un'ontologia accessibile dal server o caricata prima via `POST /upload`. Usalo solo per query custom; per profili standard di concetti/proprieta usa i tool `inspect_local_*`.
 *   `compare_local_with_remote`: Confronta le classi/proprietà definite in un'ontologia accessibile dal server o via `upload_id` con quelle presenti in schema.gov.it — utile per scoprire cosa riusare o allineare.
 
 ### 11. Workflow Upload HTTP
-*   `query_uploaded_store`: Esegue query SPARQL SELECT su uno store temporaneo creato via `POST /upload`. In modalità HTTP/remota è spesso il flusso corretto quando il file sta sulla macchina client e non sul filesystem del server.
+*   `query_uploaded_store`: Esegue query SPARQL SELECT su uno store temporaneo creato via `POST /upload`. Tool legacy: per i nuovi flussi e' preferibile `query_local_ontology` con `upload_id`.
+
+## Scelta Rapida Dei Tool
+
+| Se vuoi fare X | Tool consigliato |
+|---|---|
+| Cercare un URI senza conoscerlo | `search_concepts` |
+| Profilare un concetto gia' presente in `schema.gov.it` | `inspect_concept` |
+| Ottenere il dump RDF grezzo di una risorsa remota | `describe_resource` |
+| Profilare una proprieta gia' presente in `schema.gov.it` | `get_property_details` |
+| Fare una query custom su `schema.gov.it` | `query_sparql` |
+| Fare una query custom su un endpoint SPARQL esterno | `query_external_endpoint` |
+| Esplorare un vocabolario noto con paginazione | `browse_vocabulary` |
+| Fare una ricerca veloce dentro un vocabolario noto | `search_in_vocabulary` |
+| Riassumere un'ontologia locale o caricata | `inspect_local_ontology` |
+| Profilare un concetto in un'ontologia locale/uploaded | `inspect_local_concept` |
+| Profilare una proprieta in un'ontologia locale/uploaded | `inspect_local_property` |
+| Fare una query custom su un'ontologia locale/uploaded | `query_local_ontology` |
+| Caricare un file che il server non puo' leggere direttamente | `get_upload_instructions` |
 
 ### 12. Meta-Ottimizzazione
 *   `suggest_new_tools`: Analizza i log delle query RAW e suggerisce nuovi tool specializzati in base all'utilizzo reale.
@@ -257,7 +275,7 @@ Risposta tipica:
 {"id":"9d7...","tripleCount":1234,"format":"text/turtle","endpoint":"/sparql/9d7..."}
 ```
 
-Poi usa quell'`id` come `upload_id` con `inspect_local_ontology`, `query_local_ontology` o `compare_local_with_remote`, oppure interroga direttamente lo store:
+Poi usa quell'`id` come `upload_id` con `inspect_local_ontology`, `query_local_ontology` o `compare_local_with_remote`. L'interrogazione diretta dello store resta possibile, ma per i nuovi flussi e' preferibile `query_local_ontology` con `upload_id`:
 
 ```bash
 curl --get \
@@ -331,8 +349,8 @@ docker run -d \
 *   **Prefixes Automatici**: Non serve definire `rdf:`, `owl:`, `skos:`, ecc. nelle query interne. Il server li aggiunge automaticamente. Per gli endpoint esterni i prefissi non vengono iniettati di default.
 *   **Compressione Token**: Le liste lunghe (> 5 item) vengono restituite in formato tabellare compatto per risparmiare token.
 *   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection.
-*   **Ontologia Locale**: I tool del gruppo 10 (`inspect_local_ontology`, `query_local_ontology`, `compare_local_with_remote`) usano [oxigraph](https://github.com/oxigraph/oxigraph) (WASM) per caricare file RDF/OWL in memoria ed eseguire SPARQL. `file_path` funziona solo per file davvero leggibili dal processo server; non trasferisce file dal client. I file vengono cachati dopo il primo caricamento; le query successive sullo stesso file non rileggono il disco. Formati supportati: `.ttl`, `.owl`, `.rdf`, `.nt`, `.jsonld`.
-*   **Workflow Upload HTTP**: Il tool del gruppo 11 (`query_uploaded_store`) permette di interrogare via SPARQL uno store temporaneo creato via `POST /upload`, con scadenza automatica dopo un'ora. In modalità HTTP/SSE remota questo è il fallback consigliato quando il file non è accessibile via `file_path`.
+*   **Ontologia Locale**: I tool del gruppo 10 (`inspect_local_ontology`, `inspect_local_concept`, `inspect_local_property`, `query_local_ontology`, `compare_local_with_remote`) usano [oxigraph](https://github.com/oxigraph/oxigraph) (WASM) per caricare file RDF/OWL in memoria ed eseguire SPARQL. `file_path` funziona solo per file davvero leggibili dal processo server; non trasferisce file dal client. I file vengono cachati dopo il primo caricamento; le query successive sullo stesso file non rileggono il disco. Formati supportati: `.ttl`, `.owl`, `.rdf`, `.nt`, `.jsonld`.
+*   **Workflow Upload HTTP**: usa `get_upload_instructions` quando il file sta sul client e il server non puo' leggerlo. Dopo l'upload, il flusso principale consigliato e' `query_local_ontology` con `upload_id`; `query_uploaded_store` resta un percorso legacy specifico dello store temporaneo.
 *   **Open Knowledge Graphs (OKG)**: I tool del gruppo 13 chiamano `api.openknowledgegraphs.com` (REST JSON, CC0, nessuna autenticazione, timeout 10s). Le categorie tematiche vengono scaricate dinamicamente dalla root dell'API (`GET /`) al primo utilizzo e messe in cache in memoria per la durata della sessione; non è più necessario aggiornarle manualmente nel codice. Il tool `compare_coverage_with_okg` combina una chiamata OKG con una query SPARQL su schema.gov.it usando i Wikidata ID come chiave di collegamento.
 *   **Logging**: Tutte le chiamate vengono loggate in `logs/usage_log.jsonl` per analisi e miglioramento continuo. Ogni entry include argomenti, riepilogo, `source_data_metrics` e `ai_data_metrics`: metriche quantitative dei dati ricevuti e del payload finale passato al modello, ad esempio numero di caratteri e, quando rilevabile, righe, colonne o numero di elementi.
 *   **Trasporto**: Il server supporta sia `stdio` (default, per uso locale) che HTTP/SSE (via `MCP_TRANSPORT=sse`, per uso remoto/Docker).
