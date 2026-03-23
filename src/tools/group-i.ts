@@ -10,6 +10,163 @@ import { sanitizeSparqlString, executeSparql, compressSparqlResult } from "../sp
 export function registerGroupI(server: McpServer): void {
 
 server.registerTool(
+  "resolve_territorial_uri",
+  {
+    title: "Resolve Territorial URI",
+    description: `Resolve an Italian territorial code to its canonical CLV URI with labels and related URIs.
+
+**Args:**
+- code_type: Type of code: "istat-comune", "istat-provincia", "istat-regione", or "belfiore"
+- code: The code value (e.g. "046030" for ISTAT comune, "F205" for Belfiore)
+- date: (optional) ISO date string (e.g. "2022-08-12") — noted in output, full temporal filtering not yet implemented
+
+**Returns:**
+- uri: canonical CLV URI
+- name: official name
+- code_type and code
+- related: connected territorial URIs (province for cities, region for provinces)
+- date_note: reminder if date was provided
+
+**Use when:** You have a raw territorial code (ISTAT or Belfiore) and need the official semantic URI to use in JSON-LD or RDF modeling.`,
+    inputSchema: {
+      code_type: z.enum(["istat-comune", "istat-provincia", "istat-regione", "belfiore"]).describe("Type of territorial code"),
+      code: z.string().describe("The code value (e.g. '046030', 'F205', '001')"),
+      date: z.string().optional().describe("Optional ISO date for temporal context (e.g. '2022-08-12')"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  async ({ code_type, code, date }) => {
+    const safeCode = sanitizeSparqlString(code);
+
+    return executeTool<unknown>("resolve_territorial_uri", { code_type, code, date }, async () => {
+      let mainQuery: string;
+
+      if (code_type === "istat-comune") {
+        mainQuery = `
+          SELECT DISTINCT ?uri ?name WHERE {
+            ?uri a clv:City ;
+                 skos:notation "${safeCode}" ;
+                 l0:name ?name .
+          }
+          LIMIT 5
+        `;
+      } else if (code_type === "istat-provincia") {
+        mainQuery = `
+          SELECT DISTINCT ?uri ?name WHERE {
+            ?uri a clv:Province ;
+                 skos:notation "${safeCode}" ;
+                 l0:name ?name .
+          }
+          LIMIT 5
+        `;
+      } else if (code_type === "istat-regione") {
+        mainQuery = `
+          SELECT DISTINCT ?uri ?name WHERE {
+            ?uri a clv:Region ;
+                 skos:notation "${safeCode}" ;
+                 l0:name ?name .
+          }
+          LIMIT 5
+        `;
+      } else {
+        mainQuery = `
+          SELECT DISTINCT ?uri ?name WHERE {
+            ?uri clv:hasIdentifier ?id .
+            FILTER(CONTAINS(STR(?id), "/cadastral-code/${safeCode}"))
+            OPTIONAL { ?uri l0:name ?name }
+            OPTIONAL { ?uri rdfs:label ?name }
+          }
+          LIMIT 5
+        `;
+      }
+
+      const mainResult = await executeSparql(mainQuery);
+      const mainBindings = mainResult.results?.bindings ?? [];
+
+      if (mainBindings.length === 0) {
+        return {
+          success: true,
+          data: {
+            found: false,
+            code_type,
+            code,
+            message: `No result found for ${code_type} = "${code}". Check code format (e.g. ISTAT comune codes are 6 digits like "046030").`,
+          },
+        };
+      }
+
+      const seen = new Map<string, string>();
+      for (const b of mainBindings) {
+        const uri = b.uri?.value ?? "";
+        const name = b.name?.value ?? "";
+        const existing = seen.get(uri);
+        if (!existing || name.length > existing.length) seen.set(uri, name);
+      }
+      const primaryUri = seen.keys().next().value ?? "";
+      const primaryName = seen.get(primaryUri) ?? "";
+
+      let relatedQuery: string | null = null;
+      if (code_type === "istat-comune") {
+        relatedQuery = `
+          SELECT DISTINCT ?related ?relatedName ?relatedCode ?relatedType WHERE {
+            ?city a clv:City ; skos:notation "${safeCode}" .
+            ?city ?p ?related .
+            ?related a ?relatedType .
+            VALUES ?relatedType { clv:Province clv:Region }
+            OPTIONAL { ?related l0:name ?relatedName }
+            OPTIONAL { ?related skos:notation ?relatedCode }
+          }
+          LIMIT 5
+        `;
+      } else if (code_type === "istat-provincia") {
+        relatedQuery = `
+          SELECT DISTINCT ?related ?relatedName ?relatedCode ?relatedType WHERE {
+            ?prov a clv:Province ; skos:notation "${safeCode}" .
+            ?prov ?p ?related .
+            ?related a ?relatedType .
+            VALUES ?relatedType { clv:Region }
+            OPTIONAL { ?related l0:name ?relatedName }
+            OPTIONAL { ?related skos:notation ?relatedCode }
+          }
+          LIMIT 3
+        `;
+      }
+
+      const related: Array<{ uri: string; name: string; code: string; type: string }> = [];
+      if (relatedQuery) {
+        const relatedResult = await executeSparql(relatedQuery);
+        for (const b of relatedResult.results?.bindings ?? []) {
+          related.push({
+            uri: b.related?.value ?? "",
+            name: b.relatedName?.value ?? "",
+            code: b.relatedCode?.value ?? "",
+            type: (b.relatedType?.value ?? "").split("/").pop() ?? "",
+          });
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          found: true,
+          code_type,
+          code,
+          uri: primaryUri,
+          name: primaryName,
+          related,
+          ...(date ? { date_note: `Date "${date}" was provided. Full temporal filtering is not yet implemented; results may include historical or future entities.` } : {}),
+        },
+      };
+    });
+  }
+);
+
+server.registerTool(
   "list_municipalities",
   {
     title: "List Municipalities",
