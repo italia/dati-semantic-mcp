@@ -4,6 +4,7 @@ import type { SparqlResult, SparqlBinding, SparqlBindingValue, CompressedResult,
 import { PREFIXES, ENDPOINT } from "./constants.js";
 
 const BROWSER_LIKE_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+export type LabelLang = "it" | "en" | "any";
 
 // Sanitize string literals for safe SPARQL interpolation
 export function sanitizeSparqlString(input: string): string {
@@ -16,6 +17,11 @@ export function sanitizeSparqlUri(input: string): string {
     throw new Error(`Invalid URI: ${input}`);
   }
   return input;
+}
+
+export function buildLangFilter(variable: string, lang: LabelLang, includeEmpty: boolean = true): string {
+  if (lang === "any") return "";
+  return `FILTER(LANG(${variable}) = "${lang}"${includeEmpty ? ` || LANG(${variable}) = ""` : ""})`;
 }
 
 /** Build a diagnostic error message from a failed SPARQL HTTP response */

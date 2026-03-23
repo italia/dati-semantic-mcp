@@ -1,0 +1,164 @@
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dct:     <http://purl.org/dc/terms/> .
+@prefix adms:    <http://www.w3.org/ns/adms#> .
+@prefix dcatapit: <http://dati.gov.it/onto/dcatapit#> .
+@prefix clv:     <https://w3id.org/italia/onto/CLV/> .
+@prefix idtype:  <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types/> .
+
+# =============================================================================
+# Vocabolario controllato: Tipi di identificativi territoriali
+#
+# Generato da: genera-vocabolario-identifier-types.py
+# Fonte dati: SPARQL endpoint schema.gov.it
+# =============================================================================
+
+<https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types>
+    a skos:ConceptScheme, adms:Asset, dcatapit:Dataset ;
+    rdfs:label "Tipi di identificativi territoriali"@it ,
+               "Territorial Identifier Types"@en ;
+    dct:description
+        "Vocabolario controllato dei tipi di codice identificativo usati per le entita' territoriali italiane (comuni, province, regioni, stati)."@it ,
+        "Controlled vocabulary of identifier code types used for Italian territorial entities (municipalities, provinces, regions, countries)."@en ;
+    dct:publisher <https://w3id.org/italia/data/public-organization/ISTAT> ;
+    dct:language <http://publications.europa.eu/resource/authority/language/ITA> ,
+                 <http://publications.europa.eu/resource/authority/language/ENG> ;
+    owl:versionInfo "0.1 - proposta" .
+        skos:hasTopConcept idtype:istat-alphanumeric ;
+        skos:hasTopConcept idtype:istat-numeric ;
+        skos:hasTopConcept idtype:belfiore ;
+        skos:hasTopConcept idtype:province-code ;
+        skos:hasTopConcept idtype:car-plate ;
+        skos:hasTopConcept idtype:region-code ;
+        skos:hasTopConcept idtype:metropolitan-city ;
+        skos:hasTopConcept idtype:geo-distribution ;
+        skos:hasTopConcept idtype:iso-3166-1-alpha-2 ;
+        skos:hasTopConcept idtype:iso-3166-1-alpha-3 .
+
+# --- Codice ISTAT alfanumerico (14206 istanze nel triplestore) ---
+idtype:istat-alphanumeric
+    a skos:Concept ;
+    skos:inScheme <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types> ;
+    skos:prefLabel "Codice ISTAT alfanumerico"@it ,
+                   "ISTAT alphanumeric code"@en ;
+    skos:notation "ISTAT-ALPHA" ;
+    skos:definition "Codice ISTAT con zeri iniziali. Per i comuni ha 6 cifre (es. 015146 = Milano), per le province 3 (es. 015), per le regioni 2 (es. 03)."@it ,
+                    "ISTAT code with leading zeros. 6 digits for municipalities (e.g. 015146 = Milano), 3 for provinces, 2 for regions."@en ;
+    skos:historyNote "Valore letterale attuale nel triplestore: \"Codice ISTAT alfanumerico\""@it ;
+    rdfs:seeAlso skos:notation ;
+    skos:scopeNote "Gia' disponibile come skos:notation su tutte le entita' territoriali. Non richiede proprieta' aggiuntiva."@it .
+
+# --- Codice ISTAT numerico (14206 istanze nel triplestore) ---
+idtype:istat-numeric
+    a skos:Concept ;
+    skos:inScheme <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types> ;
+    skos:prefLabel "Codice ISTAT numerico"@it ,
+                   "ISTAT numeric code"@en ;
+    skos:notation "ISTAT-NUM" ;
+    skos:definition "Codice ISTAT senza zeri iniziali (es. 15146 = Milano). Derivabile dal codice alfanumerico."@it ,
+                    "ISTAT code without leading zeros (e.g. 15146 = Milano). Derivable from alphanumeric code."@en ;
+    skos:historyNote "Valore letterale attuale nel triplestore: \"Codice ISTAT numerico\""@it ;
+    skos:scopeNote "RIDONDANTE. Derivabile con xsd:integer(skos:notation). Si raccomanda di eliminare queste risorse Identifier."@it .
+
+# --- Codice Belfiore (10356 istanze nel triplestore) ---
+idtype:belfiore
+    a skos:Concept ;
+    skos:inScheme <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types> ;
+    skos:prefLabel "Codice Belfiore"@it ,
+                   "Belfiore code"@en ;
+    skos:altLabel "Codice Catastale"@it ;
+    skos:altLabel "Cadastral code"@en ;
+    skos:notation "BELFIORE" ;
+    skos:definition "Codice a 4 caratteri alfanumerici assegnato dall'Agenzia delle Entrate a ogni comune italiano. Usato nel calcolo del codice fiscale. Es. F205 = Milano, H501 = Roma."@it ,
+                    "4-character alphanumeric code assigned by the Italian Revenue Agency to each municipality. Used in fiscal code calculation. E.g. F205 = Milano, H501 = Roma."@en ;
+    skos:historyNote "Valore letterale attuale nel triplestore: \"Codice Catastale\""@it ;
+    rdfs:seeAlso clv:codiceBelfiore .
+
+# --- Codice Provincia (107 istanze nel triplestore) ---
+idtype:province-code
+    a skos:Concept ;
+    skos:inScheme <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types> ;
+    skos:prefLabel "Codice Provincia"@it ,
+                   "Province code"@en ;
+    skos:notation "PROV" ;
+    skos:definition "Codice numerico a 3 cifre della provincia (es. 015 = Milano)."@it ,
+                    "3-digit numeric province code (e.g. 015 = Milano)."@en ;
+    skos:historyNote "Valore letterale attuale nel triplestore: \"Codice Provincia Alfanumerico\""@it ;
+    rdfs:seeAlso skos:notation ;
+    skos:scopeNote "Gia' disponibile come skos:notation sulla Province."@it .
+
+# --- Sigla Automobilistica (107 istanze nel triplestore) ---
+idtype:car-plate
+    a skos:Concept ;
+    skos:inScheme <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types> ;
+    skos:prefLabel "Sigla Automobilistica"@it ,
+                   "Car plate code"@en ;
+    skos:notation "PLATE" ;
+    skos:definition "Sigla a 2 lettere della provincia usata nelle targhe (es. MI = Milano)."@it ,
+                    "2-letter province code used on license plates (e.g. MI = Milano)."@en ;
+    skos:historyNote "Valore letterale attuale nel triplestore: \"Sigla Automobilistica\""@it ;
+    rdfs:seeAlso clv:siglaAutomobilistica .
+
+# --- Codice Regione (21 istanze nel triplestore) ---
+idtype:region-code
+    a skos:Concept ;
+    skos:inScheme <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types> ;
+    skos:prefLabel "Codice Regione"@it ,
+                   "Region code"@en ;
+    skos:notation "REG" ;
+    skos:definition "Codice numerico a 2 cifre della regione (es. 03 = Lombardia)."@it ,
+                    "2-digit numeric region code (e.g. 03 = Lombardia)."@en ;
+    skos:historyNote "Valore letterale attuale nel triplestore: \"Codice Regione\""@it ;
+    rdfs:seeAlso skos:notation ;
+    skos:scopeNote "Gia' disponibile come skos:notation sulla Region."@it .
+
+# --- Codice Citta' Metropolitana (14 istanze nel triplestore) ---
+idtype:metropolitan-city
+    a skos:Concept ;
+    skos:inScheme <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types> ;
+    skos:prefLabel "Codice Citta' Metropolitana"@it ,
+                   "Metropolitan city code"@en ;
+    skos:notation "METRO" ;
+    skos:definition "Codice numerico a 3 cifre per le 14 citta' metropolitane (es. 215 = Milano)."@it ,
+                    "3-digit code for the 14 metropolitan cities (e.g. 215 = Milano)."@en ;
+    skos:historyNote "Valore letterale attuale nel triplestore: \"Codice Città Metropolitana\""@it ;
+    rdfs:seeAlso clv:codiceCittaMetropolitana .
+
+# --- Codice Ripartizione Geografica (5 istanze nel triplestore) ---
+idtype:geo-distribution
+    a skos:Concept ;
+    skos:inScheme <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types> ;
+    skos:prefLabel "Codice Ripartizione Geografica"@it ,
+                   "Geographical distribution code"@en ;
+    skos:notation "GEODIST" ;
+    skos:definition "Codice numerico della ripartizione geografica (1=Nord-ovest, 2=Nord-est, 3=Centro, 4=Sud, 5=Isole)."@it ,
+                    "Numeric code for geographical distribution (1=North-west, 2=North-east, 3=Centre, 4=South, 5=Islands)."@en ;
+    skos:historyNote "Valore letterale attuale nel triplestore: \"Identificativo della ripartizione geografica\""@it ;
+    rdfs:seeAlso skos:notation ;
+    skos:scopeNote "Gia' disponibile come skos:notation sulla GeographicalDistribution."@it .
+
+# --- Codice ISO 3166-1 alpha-2 (1 istanze nel triplestore) ---
+idtype:iso-3166-1-alpha-2
+    a skos:Concept ;
+    skos:inScheme <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types> ;
+    skos:prefLabel "Codice ISO 3166-1 alpha-2"@it ,
+                   "ISO 3166-1 alpha-2 code"@en ;
+    skos:notation "ISO2" ;
+    skos:definition "Codice a 2 lettere dello standard ISO 3166-1 (es. IT = Italia)."@it ,
+                    "2-letter ISO 3166-1 code (e.g. IT = Italy)."@en ;
+    skos:historyNote "Valore letterale attuale nel triplestore: \"ISO 3166-1 alpha-2\""@it ;
+    rdfs:seeAlso clv:isoAlpha2 .
+
+# --- Codice ISO 3166-1 alpha-3 (1 istanze nel triplestore) ---
+idtype:iso-3166-1-alpha-3
+    a skos:Concept ;
+    skos:inScheme <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/identifier-types> ;
+    skos:prefLabel "Codice ISO 3166-1 alpha-3"@it ,
+                   "ISO 3166-1 alpha-3 code"@en ;
+    skos:notation "ISO3" ;
+    skos:definition "Codice a 3 lettere dello standard ISO 3166-1 (es. ITA = Italia)."@it ,
+                    "3-letter ISO 3166-1 code (e.g. ITA = Italy)."@en ;
+    skos:historyNote "Valore letterale attuale nel triplestore: \"ISO 3166-1 alpha-3\""@it ;
+    rdfs:seeAlso clv:isoAlpha3 .

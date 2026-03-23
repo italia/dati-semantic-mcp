@@ -1,0 +1,165 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix cpv: <https://w3id.org/italia/onto/CPV/> .
+@prefix l0: <https://w3id.org/italia/onto/l0/> .
+@prefix sm: <https://w3id.org/italia/onto/SM/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+# =============================================================================
+# PATCH: Estensioni CPV per semplificare la modellazione di persone fisiche
+#
+# Questo file contiene estensioni additive all'ontologia CPV che non rompono
+# la retrocompatibilita'. Puo' essere importato come modulo aggiuntivo.
+#
+# Generato da: genera-vocabolario-identifier-types.py
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. Contatti diretti per Person (evita il pattern a 3 hop via SM)
+# -----------------------------------------------------------------------------
+
+cpv:hasEmail
+    a owl:ObjectProperty ;
+    rdfs:subPropertyOf <https://w3id.org/italia/onto/SM/hasOnlineContactPoint> ;
+    rdfs:domain cpv:Person ;
+    rdfs:range <https://w3id.org/italia/onto/SM/Email> ;
+    rdfs:label "ha email"@it ,
+               "has email"@en ;
+    rdfs:comment "Collega una persona direttamente a un indirizzo email (URI mailto:). Sottoproprieta' di sm:hasOnlineContactPoint, quindi il reasoner inferisce automaticamente il collegamento SM."@it ,
+                 "Links a person directly to an email address (mailto: URI). Subproperty of sm:hasOnlineContactPoint, so the reasoner automatically infers the SM link."@en ;
+    rdfs:isDefinedBy cpv: ;
+    owl:versionInfo "proposta"@it ,
+                    "proposed"@en .
+
+cpv:hasTelephone
+    a owl:ObjectProperty ;
+    rdfs:subPropertyOf <https://w3id.org/italia/onto/SM/hasOnlineContactPoint> ;
+    rdfs:domain cpv:Person ;
+    rdfs:range <https://w3id.org/italia/onto/SM/Telephone> ;
+    rdfs:label "ha telefono"@it ,
+               "has telephone"@en ;
+    rdfs:comment "Collega una persona direttamente a un numero di telefono (URI tel:)."@it ,
+                 "Links a person directly to a phone number (tel: URI)."@en ;
+    rdfs:isDefinedBy cpv: ;
+    owl:versionInfo "proposta"@it ,
+                    "proposed"@en .
+
+# -----------------------------------------------------------------------------
+# 2. Identificativo strutturato per Person
+# -----------------------------------------------------------------------------
+
+cpv:PersonIdentifier
+    a owl:Class ;
+    rdfs:subClassOf l0:Characteristic ;
+    rdfs:label "Identificativo persona"@it ,
+               "Person Identifier"@en ;
+    rdfs:comment "Un identificativo univoco associato a una persona fisica, come il codice fiscale, l'ID ANPR, il numero di carta d'identita', ecc."@it ,
+                 "A unique identifier associated with a natural person, such as the fiscal code, ANPR ID, identity card number, etc."@en ;
+    rdfs:isDefinedBy cpv: ;
+    owl:versionInfo "proposta"@it ,
+                    "proposed"@en .
+
+cpv:hasPersonIdentifier
+    a owl:ObjectProperty ;
+    rdfs:domain cpv:Person ;
+    rdfs:range cpv:PersonIdentifier ;
+    rdfs:label "ha identificativo persona"@it ,
+               "has person identifier"@en ;
+    rdfs:comment "Collega una persona fisica a uno o piu' identificativi strutturati."@it ,
+                 "Links a natural person to one or more structured identifiers."@en ;
+    rdfs:isDefinedBy cpv: ;
+    owl:versionInfo "proposta"@it ,
+                    "proposed"@en .
+
+cpv:identifierValue
+    a owl:DatatypeProperty ;
+    rdfs:domain cpv:PersonIdentifier ;
+    rdfs:range xsd:string ;
+    rdfs:label "valore identificativo"@it ,
+               "identifier value"@en ;
+    rdfs:comment "Il valore testuale dell'identificativo."@it ,
+                 "The textual value of the identifier."@en ;
+    rdfs:isDefinedBy cpv: ;
+    owl:versionInfo "proposta"@it ,
+                    "proposed"@en .
+
+cpv:identifierType
+    a owl:ObjectProperty ;
+    rdfs:domain cpv:PersonIdentifier ;
+    rdfs:label "tipo identificativo"@it ,
+               "identifier type"@en ;
+    rdfs:comment "Il tipo di identificativo. Si raccomanda l'uso di un vocabolario controllato (es. codice fiscale, ID ANPR, CIE, passaporto)."@it ,
+                 "The type of identifier. Use of a controlled vocabulary is recommended (e.g., fiscal code, ANPR ID, CIE, passport)."@en ;
+    rdfs:isDefinedBy cpv: ;
+    owl:versionInfo "proposta"@it ,
+                    "proposed"@en .
+
+cpv:issuedBy
+    a owl:ObjectProperty ;
+    rdfs:domain cpv:PersonIdentifier ;
+    rdfs:range l0:Agent ;
+    rdfs:label "rilasciato da"@it ,
+               "issued by"@en ;
+    rdfs:comment "L'ente che ha rilasciato l'identificativo."@it ,
+                 "The organization that issued the identifier."@en ;
+    rdfs:isDefinedBy cpv: ;
+    owl:versionInfo "proposta"@it ,
+                    "proposed"@en .
+
+cpv:issueDate
+    a owl:DatatypeProperty ;
+    rdfs:domain cpv:PersonIdentifier ;
+    rdfs:range xsd:date ;
+    rdfs:label "data rilascio"@it ,
+               "issue date"@en ;
+    rdfs:comment "La data di rilascio dell'identificativo."@it ,
+                 "The date the identifier was issued."@en ;
+    rdfs:isDefinedBy cpv: ;
+    owl:versionInfo "proposta"@it ,
+                    "proposed"@en .
+
+cpv:expirationDate
+    a owl:DatatypeProperty ;
+    rdfs:domain cpv:PersonIdentifier ;
+    rdfs:range xsd:date ;
+    rdfs:label "data scadenza"@it ,
+               "expiration date"@en ;
+    rdfs:comment "La data di scadenza dell'identificativo, se applicabile."@it ,
+                 "The expiration date of the identifier, if applicable."@en ;
+    rdfs:isDefinedBy cpv: ;
+    owl:versionInfo "proposta"@it ,
+                    "proposed"@en .
+
+# -----------------------------------------------------------------------------
+# 3. Vocabolario controllato per tipi di identificativo persona (esempio)
+# -----------------------------------------------------------------------------
+
+cpv:IdentifierTypeConcept
+    a owl:Class ;
+    rdfs:subClassOf skos:Concept ;
+    rdfs:label "Tipo di identificativo persona"@it ,
+               "Person Identifier Type"@en ;
+    rdfs:comment "Classe per i concetti del vocabolario controllato dei tipi di identificativo persona."@it ;
+    rdfs:isDefinedBy cpv: ;
+    owl:versionInfo "proposta"@it .
+
+cpv:FiscalCode
+    a cpv:IdentifierTypeConcept ;
+    rdfs:label "Codice Fiscale"@it ,
+               "Fiscal Code"@en ;
+    skos:notation "CF" .
+
+cpv:ANPRIdentifier
+    a cpv:IdentifierTypeConcept ;
+    rdfs:label "ID ANPR"@it ,
+               "ANPR ID"@en ;
+    skos:notation "ANPR" .
+
+cpv:IdentityCardNumber
+    a cpv:IdentifierTypeConcept ;
+    rdfs:label "Numero Carta d'Identita'"@it ,
+               "Identity Card Number"@en ;
+    skos:notation "CIE" .

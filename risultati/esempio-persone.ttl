@@ -1,0 +1,129 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix l0:   <https://w3id.org/italia/onto/l0/> .
+@prefix cpv:  <https://w3id.org/italia/onto/CPV/> .
+@prefix clv:  <https://w3id.org/italia/onto/CLV/> .
+@prefix sm:   <https://w3id.org/italia/onto/SM/> .
+@prefix ti:   <https://w3id.org/italia/onto/TI/> .
+@prefix ex:   <http://example.org/data/> .
+
+# --------------------------------------------------------------
+# PERSONA 1: Mario Rossi
+# --------------------------------------------------------------
+
+<http://example.org/data/persona/RSSMRA85C15H501X>
+    a                               cpv:Person , cpv:Alive , cpv:Male ;
+    cpv:givenName                   "Mario" ;
+    cpv:familyName                  "Rossi" ;
+    cpv:fullName                    "Mario Rossi" ;
+    cpv:dateOfBirth                 "1985-03-15"^^xsd:dateTime ;
+    cpv:taxCode                     "RSSMRA85C15H501X" ;
+    cpv:personID                    "ANPR-00123456" ;
+    clv:hasIdentifier               <http://example.org/data/id-anpr/rossi> ;
+    cpv:hasBirthPlace               <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/cities/058091-(2015-01-01)> ;
+    clv:hasAddress                  <http://example.org/data/indirizzo/rossi-residenza> ;
+    sm:hasOnlineContactPoint        <http://example.org/data/contatto/rossi-online> .
+
+# ID ANPR strutturato
+<http://example.org/data/id-anpr/rossi>
+    a                               clv:Identifier ;
+    l0:identifier                   "ANPR-00123456" ;
+    clv:identifierType              "ID ANPR" ;
+    clv:issuedBy                    <https://w3id.org/italia/data/public-organization/m_it> .
+
+# Indirizzo strutturato
+<http://example.org/data/indirizzo/rossi-residenza>
+    a                               clv:Address ;
+    clv:fullAddress                 "Via Roma 42, 00184 Roma RM"@it ;
+    clv:postCode                    "00184" ;
+    clv:hasCity                     <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/cities/058091-(2015-01-01)> ;
+    clv:hasProvince                 <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/provinces/058> ;
+    clv:hasRegion                   <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/regions/12> ;
+    clv:hasStreetToponym            <http://example.org/data/toponimo/via-roma-42> ;
+    clv:hasNumber                   <http://example.org/data/civico/roma-42> .
+
+<http://example.org/data/toponimo/via-roma-42>
+    a                               clv:StreetToponym ;
+    clv:toponymQualifier            "Via" ;
+    clv:officialStreetName          "Roma" .
+
+<http://example.org/data/civico/roma-42>
+    a                               clv:CivicNumbering ;
+    clv:streetNumber                42 .
+
+# Punto di contatto online con email
+<http://example.org/data/contatto/rossi-online>
+    a                               sm:OnlineContactPoint ;
+    sm:hasEmail                     <http://example.org/data/email/rossi> .
+
+<http://example.org/data/email/rossi>
+    a                               sm:Email ;
+    sm:emailAddress                 "mario.rossi@example.com"^^xsd:anyURI ;
+    sm:hasEmailType                 <http://example.org/data/email-type/tradizionale> .
+
+# --------------------------------------------------------------
+# PERSONA 2: Giulia Bianchi
+# --------------------------------------------------------------
+
+<http://example.org/data/persona/BNCGLI90A41F205Y>
+    a                               cpv:Person , cpv:Alive , cpv:Female ;
+    cpv:givenName                   "Giulia" ;
+    cpv:familyName                  "Bianchi" ;
+    cpv:fullName                    "Giulia Bianchi" ;
+    cpv:dateOfBirth                 "1990-01-01"^^xsd:dateTime ;
+    cpv:taxCode                     "BNCGLI90A41F205Y" ;
+    cpv:personID                    "ANPR-00789012" ;
+    clv:hasIdentifier               <http://example.org/data/id-anpr/bianchi> ;
+    cpv:hasBirthPlace               <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/cities/015146-(2019-02-04)> ;
+    clv:hasAddress                  <http://example.org/data/indirizzo/bianchi-residenza> ;
+    sm:hasOnlineContactPoint        <http://example.org/data/contatto/bianchi-online> .
+
+# ID ANPR strutturato
+<http://example.org/data/id-anpr/bianchi>
+    a                               clv:Identifier ;
+    l0:identifier                   "ANPR-00789012" ;
+    clv:identifierType              "ID ANPR" ;
+    clv:issuedBy                    <https://w3id.org/italia/data/public-organization/m_it> .
+
+# Indirizzo strutturato
+<http://example.org/data/indirizzo/bianchi-residenza>
+    a                               clv:Address ;
+    clv:fullAddress                 "Corso Buenos Aires 7, 20124 Milano MI"@it ;
+    clv:postCode                    "20124" ;
+    clv:hasCity                     <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/cities/015146-(2019-02-04)> ;
+    clv:hasProvince                 <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/provinces/015> ;
+    clv:hasRegion                   <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/regions/03> ;
+    clv:hasStreetToponym            <http://example.org/data/toponimo/corso-buenos-aires-7> ;
+    clv:hasNumber                   <http://example.org/data/civico/buenos-aires-7> .
+
+<http://example.org/data/toponimo/corso-buenos-aires-7>
+    a                               clv:StreetToponym ;
+    clv:toponymQualifier            "Corso" ;
+    clv:officialStreetName          "Buenos Aires" .
+
+<http://example.org/data/civico/buenos-aires-7>
+    a                               clv:CivicNumbering ;
+    clv:streetNumber                7 .
+
+# Punto di contatto online con email (PEC)
+<http://example.org/data/contatto/bianchi-online>
+    a                               sm:OnlineContactPoint ;
+    sm:hasEmail                     <http://example.org/data/email/bianchi> .
+
+<http://example.org/data/email/bianchi>
+    a                               sm:Email ;
+    sm:emailAddress                 "giulia.bianchi@pec.example.com"^^xsd:anyURI ;
+    sm:hasEmailType                 <http://example.org/data/email-type/pec> .
+
+# --------------------------------------------------------------
+# RISORSE CONDIVISE
+# --------------------------------------------------------------
+
+<http://example.org/data/email-type/tradizionale>
+    a               sm:EmailType ;
+    rdfs:label      "Email tradizionale"@it .
+
+<http://example.org/data/email-type/pec>
+    a               sm:EmailType ;
+    rdfs:label      "Posta Elettronica Certificata (PEC)"@it .

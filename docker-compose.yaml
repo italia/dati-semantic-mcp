@@ -14,7 +14,7 @@ services:
     container_name: schema-gov-it-mcp
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "8088:3000"
     volumes:
       # Persist usage logs
       - ./logs:/app/logs
@@ -27,5 +27,6 @@ services:
     environment:
       - NODE_ENV=production
       - MCP_TRANSPORT=sse
+      - MCP_PUBLIC_URL=http://localhost:8088
       - PORT=3000
       - HOST=0.0.0.0

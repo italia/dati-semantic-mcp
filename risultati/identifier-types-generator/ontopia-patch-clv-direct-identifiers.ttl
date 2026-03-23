@@ -1,0 +1,142 @@
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix clv:  <https://w3id.org/italia/onto/CLV/> .
+@prefix l0:   <https://w3id.org/italia/onto/l0/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+# =============================================================================
+# PATCH: Proprieta' dirette per identificativi territoriali in CLV
+#
+# Questo file contiene estensioni additive all'ontologia CLV che eliminano
+# la necessita' di risorse clv:Identifier intermedie per i codici noti.
+#
+# Generato da: genera-vocabolario-identifier-types.py
+#
+# Motivazione: 39.024 risorse Identifier per rappresentare ~5 tipi di codice
+# gia' noti e stabili. Il codice ISTAT e' gia' in skos:notation.
+#
+# Issue di riferimento: ontopia-issue-clv-identifier-type.md
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. Codice Belfiore (ex "Codice Catastale") - per Comune
+#
+#    Codice a 4 caratteri alfanumerici assegnato dall'Agenzia delle Entrate.
+#    Usato nel calcolo del codice fiscale.
+#    Esempio: F205 = Milano, H501 = Roma, L736 = Venezia.
+#
+#    Precedente in OntoPiA: l'ontologia infortuni sul lavoro definisce
+#    codiceBelfioreCittadinanza come DatatypeProperty.
+#
+#    Si preferisce "Belfiore" a "Catastale" perche':
+#    - e' il nome ufficiale nell'anagrafe comuni dell'Agenzia delle Entrate
+#    - e' il termine usato nel contesto del codice fiscale
+#    - "catastale" e' ambiguo (potrebbe riferirsi a particelle/fogli)
+# -----------------------------------------------------------------------------
+
+clv:codiceBelfiore
+    a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:domain clv:City ;
+    rdfs:range xsd:string ;
+    rdfs:label "codice Belfiore"@it ,
+               "Belfiore code"@en ;
+    rdfs:comment
+        "Codice a 4 caratteri alfanumerici (detto anche catastale) assegnato dall'Agenzia delle Entrate a ogni comune italiano. Usato nel calcolo del codice fiscale. Esempio: F205 = Milano."@it ,
+        "4-character alphanumeric code (also known as cadastral code) assigned by the Italian Revenue Agency to each municipality. Used in fiscal code calculation. Example: F205 = Milano."@en ;
+    rdfs:isDefinedBy clv: ;
+    owl:versionInfo "proposta"@it , "proposed"@en .
+
+
+# -----------------------------------------------------------------------------
+# 2. Sigla automobilistica - per Provincia
+#
+#    Sigla a 2 lettere usata nelle targhe automobilistiche.
+#    Esempio: MI = Milano, RM = Roma, NA = Napoli.
+# -----------------------------------------------------------------------------
+
+clv:siglaAutomobilistica
+    a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:domain clv:Province ;
+    rdfs:range xsd:string ;
+    rdfs:label "sigla automobilistica"@it ,
+               "car plate code"@en ;
+    rdfs:comment
+        "Sigla a 2 lettere della provincia usata nelle targhe automobilistiche. Esempio: MI = Milano."@it ,
+        "2-letter province abbreviation used on car license plates. Example: MI = Milano."@en ;
+    rdfs:isDefinedBy clv: ;
+    owl:versionInfo "proposta"@it , "proposed"@en .
+
+
+# -----------------------------------------------------------------------------
+# 3. Codice citta' metropolitana - per Provincia (citta' metropolitane)
+#
+#    Codice numerico a 3 cifre assegnato alle 14 citta' metropolitane.
+#    Esempio: 215 = Milano (vs codice provincia 015).
+# -----------------------------------------------------------------------------
+
+clv:codiceCittaMetropolitana
+    a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:domain clv:Province ;
+    rdfs:range xsd:string ;
+    rdfs:label "codice citta' metropolitana"@it ,
+               "metropolitan city code"@en ;
+    rdfs:comment
+        "Codice numerico a 3 cifre assegnato alle citta' metropolitane. Esempio: 215 = Citta' metropolitana di Milano."@it ,
+        "3-digit numeric code assigned to metropolitan cities. Example: 215 = Metropolitan City of Milan."@en ;
+    rdfs:isDefinedBy clv: ;
+    owl:versionInfo "proposta"@it , "proposed"@en .
+
+
+# -----------------------------------------------------------------------------
+# 4. Codici ISO 3166-1 - per Stato
+# -----------------------------------------------------------------------------
+
+clv:isoAlpha2
+    a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:domain clv:Country ;
+    rdfs:range xsd:string ;
+    rdfs:label "codice ISO 3166-1 alpha-2"@it ,
+               "ISO 3166-1 alpha-2 code"@en ;
+    rdfs:comment
+        "Codice a 2 lettere dello standard ISO 3166-1. Esempio: IT = Italia."@it ,
+        "2-letter code from the ISO 3166-1 standard. Example: IT = Italy."@en ;
+    rdfs:isDefinedBy clv: ;
+    owl:versionInfo "proposta"@it , "proposed"@en .
+
+clv:isoAlpha3
+    a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:domain clv:Country ;
+    rdfs:range xsd:string ;
+    rdfs:label "codice ISO 3166-1 alpha-3"@it ,
+               "ISO 3166-1 alpha-3 code"@en ;
+    rdfs:comment
+        "Codice a 3 lettere dello standard ISO 3166-1. Esempio: ITA = Italia."@it ,
+        "3-letter code from the ISO 3166-1 standard. Example: ITA = Italy."@en ;
+    rdfs:isDefinedBy clv: ;
+    owl:versionInfo "proposta"@it , "proposed"@en .
+
+
+# -----------------------------------------------------------------------------
+# 5. Nota sulle proprieta' gia' esistenti che coprono altri codici
+#
+#    NON servono nuove proprieta' per:
+#
+#    - Codice ISTAT (alfanumerico): gia' in skos:notation su tutte le entita'
+#    - Codice ISTAT numerico: derivabile con xsd:integer(skos:notation)
+#    - Codice Provincia: gia' in skos:notation sulla Province
+#    - Codice Regione: gia' in skos:notation sulla Region
+#    - Codice ripartizione geografica: gia' in skos:notation su GeographicalDistribution
+# -----------------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# 6. Deprecazione di identifierType
+# -----------------------------------------------------------------------------
+
+clv:identifierType
+    owl:deprecated true ;
+    rdfs:comment
+        "DEPRECATA. I codici territoriali noti usano proprieta' dirette: skos:notation (ISTAT), clv:codiceBelfiore (catastale), clv:siglaAutomobilistica (targa), clv:codiceCittaMetropolitana, clv:isoAlpha2, clv:isoAlpha3. Per identificativi non standard, continuare a usare clv:Identifier."@it ,
+        "DEPRECATED. Known territorial codes use direct properties: skos:notation (ISTAT), clv:codiceBelfiore (cadastral), clv:siglaAutomobilistica (car plate), clv:codiceCittaMetropolitana, clv:isoAlpha2, clv:isoAlpha3. For non-standard identifiers, continue using clv:Identifier."@en .

@@ -1,5 +1,6 @@
-import { compressSparqlResult } from "./sparql.js";
+import { buildLangFilter, compressSparqlResult } from "./sparql.js";
 import type { CompressedResult, SparqlResult } from "./types.js";
+import type { LabelLang } from "./sparql.js";
 
 export type ProfileMode = "raw" | "effective";
 export type QueryExecutor = (query: string) => Promise<SparqlResult>;
@@ -33,21 +34,29 @@ interface AnalysisEntry {
   specializes?: string[];
 }
 
-export function buildConceptProfileQueries(uri: string, mode: ProfileMode): Record<string, string> {
+export function buildConceptProfileQueries(uri: string, mode: ProfileMode, lang: LabelLang = "any"): Record<string, string> {
+  const literalFilter = lang === "any"
+    ? "FILTER(ISLITERAL(?o))"
+    : `FILTER(ISLITERAL(?o) && (LANG(?o) = "${lang}" || LANG(?o) = ""))`;
+  const parentLabelFilter = buildLangFilter("?parentLabel", lang);
+  const childLabelFilter = buildLangFilter("?childLabel", lang);
+  const propLabelFilter = buildLangFilter("?propLabel", lang);
+  const rangeLabelFilter = buildLangFilter("?rangeLabel", lang);
+  const ancestorLabelFilter = buildLangFilter("?ancestorLabel", lang);
   const baseQueries: Record<string, string> = {
     definition: `
-      SELECT ?p ?o WHERE { <${uri}> ?p ?o . FILTER(ISLITERAL(?o)) }
+      SELECT ?p ?o WHERE { <${uri}> ?p ?o . ${literalFilter} }
     `,
     hierarchy: `
       SELECT ?type ?parent ?parentLabel ?child ?childLabel WHERE {
         { <${uri}> a ?type }
         UNION
         { <${uri}> rdfs:subClassOf|skos:broader ?parent .
-          OPTIONAL { ?parent rdfs:label|skos:prefLabel ?parentLabel . FILTER(LANG(?parentLabel) = "it" || LANG(?parentLabel) = "") }
+          OPTIONAL { ?parent rdfs:label|skos:prefLabel ?parentLabel . ${parentLabelFilter} }
         }
         UNION
         { ?child rdfs:subClassOf|skos:broader <${uri}> .
-          OPTIONAL { ?child rdfs:label|skos:prefLabel ?childLabel . FILTER(LANG(?childLabel) = "it" || LANG(?childLabel) = "") }
+          OPTIONAL { ?child rdfs:label|skos:prefLabel ?childLabel . ${childLabelFilter} }
         }
       } LIMIT 50
     `,
@@ -58,9 +67,9 @@ export function buildConceptProfileQueries(uri: string, mode: ProfileMode): Reco
       SELECT DISTINCT ?prop ?propType ?propLabel ?range ?rangeLabel WHERE {
         ?prop rdfs:domain <${uri}> .
         OPTIONAL { ?prop a ?propType . VALUES ?propType { owl:ObjectProperty owl:DatatypeProperty owl:AnnotationProperty } }
-        OPTIONAL { ?prop rdfs:label ?propLabel . FILTER(LANG(?propLabel) = "it" || LANG(?propLabel) = "") }
+        OPTIONAL { ?prop rdfs:label ?propLabel . ${propLabelFilter} }
         OPTIONAL { ?prop rdfs:range ?range }
-        OPTIONAL { ?range rdfs:label|skos:prefLabel ?rangeLabel . FILTER(LANG(?rangeLabel) = "it" || LANG(?rangeLabel) = "") }
+        OPTIONAL { ?range rdfs:label|skos:prefLabel ?rangeLabel . ${rangeLabelFilter} }
       }
       ORDER BY ?prop
       LIMIT 50
@@ -79,10 +88,10 @@ export function buildConceptProfileQueries(uri: string, mode: ProfileMode): Reco
         FILTER(isIRI(?ancestor))
         ?prop rdfs:domain ?ancestor .
         OPTIONAL { ?prop a ?propType . VALUES ?propType { owl:ObjectProperty owl:DatatypeProperty owl:AnnotationProperty } }
-        OPTIONAL { ?prop rdfs:label ?propLabel . FILTER(LANG(?propLabel) = "it" || LANG(?propLabel) = "") }
+        OPTIONAL { ?prop rdfs:label ?propLabel . ${propLabelFilter} }
         OPTIONAL { ?prop rdfs:range ?range }
-        OPTIONAL { ?range rdfs:label|skos:prefLabel ?rangeLabel . FILTER(LANG(?rangeLabel) = "it" || LANG(?rangeLabel) = "") }
-        OPTIONAL { ?ancestor rdfs:label|skos:prefLabel ?ancestorLabel . FILTER(LANG(?ancestorLabel) = "it" || LANG(?ancestorLabel) = "") }
+        OPTIONAL { ?range rdfs:label|skos:prefLabel ?rangeLabel . ${rangeLabelFilter} }
+        OPTIONAL { ?ancestor rdfs:label|skos:prefLabel ?ancestorLabel . ${ancestorLabelFilter} }
       }
       ORDER BY ?ancestor ?prop
       LIMIT 100
@@ -108,16 +117,29 @@ export async function executeNamedQueries(
   queries: Record<string, string>,
   execute: QueryExecutor
 ): Promise<{ results: Record<string, CompressedResult>; totalRows: number }> {
+  const { results: rawResults, totalRows } = await executeNamedQueryResults(queries, execute);
+  const results: Record<string, CompressedResult> = {};
+  for (const [name, sparqlResult] of Object.entries(rawResults)) {
+    results[name] = compressSparqlResult(sparqlResult);
+  }
+
+  return { results, totalRows };
+}
+
+export async function executeNamedQueryResults(
+  queries: Record<string, string>,
+  execute: QueryExecutor
+): Promise<{ results: Record<string, SparqlResult>; totalRows: number }> {
   const entries = Object.entries(queries);
   const sparqlResults = await Promise.all(entries.map(([, query]) => execute(query)));
 
-  const results: Record<string, CompressedResult> = {};
+  const results: Record<string, SparqlResult> = {};
   let totalRows = 0;
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
     const sparqlResult = sparqlResults[i];
     if (!entry || !sparqlResult) continue;
-    results[entry[0]] = compressSparqlResult(sparqlResult);
+    results[entry[0]] = sparqlResult;
     totalRows += sparqlResult.results?.bindings?.length ?? 0;
   }
 

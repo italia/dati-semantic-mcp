@@ -1,7 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { executeTool, executeSparqlTool } from "../executor.js";
-import { sanitizeSparqlString, executeSparql, compressSparqlResult } from "../sparql.js";
+import { sanitizeSparqlString, executeSparql, compressSparqlResult, runLocalSparql } from "../sparql.js";
+import { resolveSemanticContextStore } from "../semantic-context.js";
 
 // -----------------------------------------------------------------------------
 // GROUP A: Foundation Tools
@@ -17,6 +18,8 @@ server.registerTool(
 
 **Args:**
 - query: The SPARQL query to execute (prefixes are auto-injected)
+- source: "schema" | "local" | "hybrid" (default: "schema")
+- file_path / content / upload_id: local context when source="local"
 
 **Returns:**
 - Compressed JSON result (tabular for >5 rows, object array otherwise)
@@ -36,9 +39,16 @@ server.registerTool(
 - you need to search by keyword without a known URI → use \`search_concepts\`
 - you need to browse a vocabulary or dataset → use the dedicated vocabulary/dataset tools
 
+**Important:** raw hybrid SPARQL is not supported yet. Use source="hybrid" only on specialized concept/property tools, not here.
+
 **Note:** Use this for ad-hoc exploration. Prefer specialized tools for common operations.`,
     inputSchema: {
       query: z.string().describe("The SPARQL query to execute"),
+      source: z.enum(["schema", "local", "hybrid"]).optional().default("schema").describe('Execution context: "schema" for schema.gov.it, "local" for a file/uploaded store. "hybrid" is reserved and not supported for raw SPARQL.'),
+      file_path: z.string().optional().describe("Absolute path to a local ontology file when source='local'"),
+      content: z.string().optional().describe("Inline RDF content when source='local'"),
+      format: z.string().optional().describe("RDF content type for inline content"),
+      upload_id: z.string().optional().describe("Uploaded ontology store ID when source='local'"),
     },
     annotations: {
       readOnlyHint: true,
@@ -47,7 +57,35 @@ server.registerTool(
       openWorldHint: true,
     },
   },
-  async ({ query }) => executeSparqlTool("query_sparql", { query }, query)
+  async ({ query, source, file_path, content, format, upload_id }) => {
+    if (source === "schema") {
+      return executeSparqlTool("query_sparql", { query, source }, query);
+    }
+
+    return executeTool("query_sparql", { query, source, file_path, upload_id, format }, async () => {
+      if (source === "hybrid") {
+        return {
+          success: false,
+          error: "Raw hybrid SPARQL is not supported yet.",
+          suggestion: "Use source='schema' or source='local' here. For hybrid reasoning use inspect_concept or get_property_details.",
+        };
+      }
+
+      const context = await resolveSemanticContextStore({ source, file_path, content, format, upload_id });
+      const result = runLocalSparql(context.store, query, true);
+      const rowCount = result.results.bindings.length;
+      return {
+        success: true,
+        data: {
+          source,
+          context: context.source,
+          result: compressSparqlResult(result),
+        },
+        rowCount,
+        sourceData: result,
+      };
+    });
+  }
 );
 
 server.registerTool(

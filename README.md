@@ -1,4 +1,4 @@
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/mfortini/schema-gov-it-mcp)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/italia/dati-semantic-mcp)
 [![Docker](https://github.com/italia/dati-semantic-mcp/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/italia/dati-semantic-mcp/actions/workflows/docker-publish.yml)
 [![ghcr.io](https://img.shields.io/badge/ghcr.io-italia%2Fdati--semantic--mcp-blue?logo=docker)](https://ghcr.io/italia/dati-semantic-mcp)
 
@@ -10,10 +10,10 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 ## Strumenti disponibili
 
-Il server espone **43 strumenti** organizzati in 12 categorie:
+Il server espone **47 strumenti** organizzati in 12 categorie:
 
 ### 1. Operazioni Base
-*   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint remoto di `schema.gov.it`. Usalo solo se nessun tool specializzato copre gia' la domanda.
+*   `query_sparql`: Esegue una query SPARQL raw con contesto `source`. Default: remoto `schema.gov.it`; supporta anche `source="local"` con `file_path`, `content` o `upload_id`. `source="hybrid"` non e' ancora supportato per SPARQL raw.
 *   `explore_catalog`: Elenca i grafi e le ontologie disponibili nell'endpoint.
 *   `explore_classes`: Elenca le classi disponibili con conteggio istanze, con filtro opzionale.
 
@@ -28,8 +28,9 @@ Il server espone **43 strumenti** organizzati in 12 categorie:
 
 ### 4. Vocabolari Controllati (Reference Data)
 *   `list_vocabularies`: Elenca i vocabolari controllati disponibili (ConceptScheme) con conteggio istanze.
-*   `search_in_vocabulary`: Cerca concetti all'interno di un vocabolario specifico. Tool legacy: nella maggior parte dei casi e' meglio `browse_vocabulary` con `keyword`.
-*   `browse_vocabulary`: Naviga un vocabolario con paginazione ed e' il default consigliato quando conosci gia' il ConceptScheme.
+*   `browse_vocabulary`: Naviga un vocabolario con paginazione ed e' il default consigliato quando conosci gia' il ConceptScheme. Supporta `keyword` e `lang`.
+*   `search_in_vocabulary`: Cerca concetti dentro un vocabolario specifico per label; utile quando vuoi una ricerca diretta senza scorrere le pagine. Supporta `lang`.
+*   `navigate_skos_hierarchy`: Naviga la gerarchia `skos:broader`/`skos:narrower` a partire da un concetto, con `direction` e `depth`.
 
 ### 5. Cataloghi e Dataset (Dati)
 *   `list_datasets`: Elenca i dataset DCAT-AP_IT disponibili.
@@ -39,21 +40,21 @@ Il server espone **43 strumenti** organizzati in 12 categorie:
 Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il catalogo contiene soprattutto asset semantici pubblicati come dataset DCAT-AP_IT, ad esempio ontologie, vocabolari controllati e relative distribuzioni. Per esplorare `schema.gov.it` conviene di norma partire da ontologie, vocabolari, classi, proprietà e query SPARQL; i tool dataset sono più indicati per cataloghi esterni o per casi DCAT-AP_IT specifici.
 
 ### 6. Intelligence (Avanzato)
-*   `search_concepts`: **Ricerca fuzzy**. Trova concetti (es. "Scuola") senza conoscere l'URI esatto; spesso e' il primo passo prima di `inspect_concept` o `get_property_details`.
-*   `inspect_concept`: **Deep Dive**. Ottiene in un colpo solo definizione, gerarchia, usage stats e vicini di un concetto del catalogo remoto.
-*   `find_relations`: **Pathfinding**. Scopre come due concetti sono collegati (link diretto o via 1 intermediario).
-*   `suggest_improvements`: Euristiche per trovare anomalie strutturali nell'ontologia (classi orfane, cicli).
+*   `search_concepts`: **Ricerca fuzzy**. Trova concetti (es. "Scuola") senza conoscere l'URI esatto; spesso e' il primo passo prima di `inspect_concept` o `get_property_details`. Supporta `lang` per ridurre duplicati it/en.
+*   `inspect_concept`: **Deep Dive**. Ottiene in un colpo solo definizione, gerarchia, usage stats e vicini di un concetto. Supporta `source="schema"` (default), `source="local"` e `source="hybrid"` per usare un'ontologia locale come base con arricchimento mirato da `schema.gov.it`, oltre a `lang` per filtrare le label.
+*   `find_relations`: **Pathfinding**. Scopre come due concetti sono collegati; supporta `max_hops` fino a 3 con flag `paths_truncated`.
+*   `suggest_improvements`: Euristiche per trovare anomalie strutturali nell'ontologia (classi orfane, cicli, proprietà senza dominio/range, classi molto popolose senza ConceptScheme).
 *   `describe_resource`: **CBD**. Ottiene tutte le triple di una risorsa (Concise Bounded Description).
 
 ### 7. Proprieta e Relazioni
 *   `list_properties`: Elenca ObjectProperty e DatatypeProperty con dominio e range.
-*   `get_property_details`: Ottiene dettagli completi di una proprieta del catalogo remoto (dominio, range, inverse, functional).
+*   `get_property_details`: Ottiene dettagli completi di una proprieta. Supporta `source="schema"` (default), `source="local"` e `source="hybrid"`; in modalita ibrida arricchisce domini/range e super-proprieta mancanti da `schema.gov.it`.
 *   `list_instances_of_class`: Elenca le istanze di una classe presente nel catalogo.
 *   `find_recommended_scheme_for_property`: Suggerisce il ConceptScheme più adatto per i valori controllati di una proprietà.
 
 ### 8. Dati Geografici (Italia)
-*   `list_municipalities`: Elenca i comuni italiani con codici ISTAT e Belfiore, con filtro per nome.
-*   `list_provinces`: Elenca le province italiane con sigla automobilistica e codice metro.
+*   `list_municipalities`: Elenca i comuni italiani con codici ISTAT e Belfiore, con filtro per nome e parametro `lang`.
+*   `list_provinces`: Elenca le province italiane con sigla automobilistica e codice metro, con parametro `lang`.
 *   `list_identifiers`: Esplora gli identificatori CLV (Codice Catastale, Sigla Automobilistica, ecc.).
 *   `resolve_territorial_uri`: Risolve codici territoriali italiani verso URI canonici del catalogo.
 
@@ -66,8 +67,8 @@ Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il
 
 ### 10. Ontologia Locale
 *   `inspect_local_ontology`: Carica e riassume un'ontologia RDF/OWL disponibile al server via `file_path`, contenuto inline o `upload_id`. Attenzione: `file_path` indica sempre un path leggibile dal server MCP, non dal laptop dell'utente.
-*   `inspect_local_concept`: **Deep dive su una classe** (locale o caricata). E' il corrispettivo locale di `inspect_concept`: usalo quando l'ontologia non e' ancora parte di `schema.gov.it`.
-*   `inspect_local_property`: **Deep dive su una proprietà** (locale o caricata). Espone separatamente: `assertedDomain`/`assertedRange` (dichiarati nel file), `inheritedDomain`/`inheritedRange` (da super-proprietà via `rdfs:subPropertyOf+`, con indicazione dell'antenato), `effectiveDomain`/`effectiveRange` (unione). Per super-proprietà non presenti nel file locale (es. l0:name, l0:description da ontologie importate), interroga automaticamente schema.gov.it come fallback. Ogni super-proprietà è marcata con source `local` | `remote` | `not-found`. Include nota sul limite Unicode nei nomi locali SPARQL con oxigraph.
+*   `inspect_local_concept`: **Deep dive su una classe** (locale o caricata). Tool legacy/compatibile: per i nuovi flussi puoi anche usare `inspect_concept` con `source="local"` o `source="hybrid"`.
+*   `inspect_local_property`: **Deep dive su una proprietà** (locale o caricata). Tool legacy/compatibile: per i nuovi flussi puoi anche usare `get_property_details` con `source="local"` o `source="hybrid"`. Espone separatamente: `assertedDomain`/`assertedRange` (dichiarati nel file), `inheritedDomain`/`inheritedRange` (da super-proprietà via `rdfs:subPropertyOf+`, con indicazione dell'antenato), `effectiveDomain`/`effectiveRange` (unione). Per super-proprietà non presenti nel file locale (es. l0:name, l0:description da ontologie importate), interroga automaticamente schema.gov.it come fallback. Ogni super-proprietà è marcata con source `local` | `remote` | `not-found`. Include nota sul limite Unicode nei nomi locali SPARQL con oxigraph.
 *   `query_local_ontology`: Esegue una query SPARQL SELECT su un'ontologia accessibile dal server o caricata prima via `POST /upload`. Usalo solo per query custom; per profili standard di concetti/proprieta usa i tool `inspect_local_*`.
 *   `compare_local_with_remote`: Confronta le classi/proprietà definite in un'ontologia accessibile dal server o via `upload_id` con quelle presenti in schema.gov.it — utile per scoprire cosa riusare o allineare.
 *   `query_uploaded_store`: Esegue query SPARQL SELECT su uno store temporaneo creato via `POST /upload`. Tool legacy: per i nuovi flussi e' preferibile `query_local_ontology` con `upload_id`.
@@ -97,7 +98,6 @@ Integrazione con [api.openknowledgegraphs.com](https://api.openknowledgegraphs.c
 | Fare una query custom su `schema.gov.it` | `query_sparql` |
 | Fare una query custom su un endpoint SPARQL esterno | `query_external_endpoint` |
 | Esplorare un vocabolario noto con paginazione | `browse_vocabulary` |
-| Fare una ricerca veloce dentro un vocabolario noto | `search_in_vocabulary` |
 | Riassumere un'ontologia locale o caricata | `inspect_local_ontology` |
 | Profilare un concetto in un'ontologia locale/uploaded | `inspect_local_concept` |
 | Profilare una proprieta in un'ontologia locale/uploaded | `inspect_local_property` |
@@ -120,7 +120,7 @@ docker compose up -d mcp
 
 Per default, questo usa l'immagine pubblicata su `ghcr.io/italia/dati-semantic-mcp:latest` e la aggiorna automaticamente prima dell'avvio.
 
-Il server sarà disponibile su `http://localhost:3000/mcp`. I log vengono salvati nella cartella `./logs/`.
+Con il file [`docker-compose.yaml`](/data/DTD/work/schema.gov.it/MCP/docker-compose.yaml) il server sarà disponibile su `http://localhost:8088/mcp`. I log vengono salvati nella cartella `./logs/`.
 
 #### Build locale esplicita con Docker Compose
 
@@ -221,7 +221,7 @@ Importante: in questa modalità `file_path` si riferisce al filesystem del serve
 #### Claude Code
 
 ```bash
-claude mcp add --transport http schema-gov-it http://localhost:3000/mcp
+claude mcp add --transport http schema-gov-it http://localhost:8088/mcp
 ```
 
 Oppure aggiungi manualmente a `~/.claude.json`:
@@ -231,7 +231,7 @@ Oppure aggiungi manualmente a `~/.claude.json`:
   "mcpServers": {
     "schema-gov-it": {
       "type": "http",
-      "url": "http://localhost:3000/mcp"
+      "url": "http://localhost:8088/mcp"
     }
   }
 }
@@ -246,7 +246,7 @@ In `.vscode/mcp.json`:
   "servers": {
     "schema-gov-it": {
       "type": "http",
-      "url": "http://localhost:3000/mcp"
+      "url": "http://localhost:8088/mcp"
     }
   }
 }
@@ -266,6 +266,8 @@ curl -X POST \
   --data-binary @./mia-ontologia.ttl \
   http://localhost:3000/upload
 ```
+
+Se stai usando [`docker-compose.yaml`](/data/DTD/work/schema.gov.it/MCP/docker-compose.yaml), sostituisci `localhost:3000` con `localhost:8088`.
 
 Risposta tipica:
 
@@ -348,8 +350,10 @@ docker run -d \
 *   **Compressione Token**: Le liste lunghe (> 5 item) vengono restituite in formato tabellare compatto per risparmiare token.
 *   **Input Sanitizzati**: Tutti i parametri utente sono sanitizzati per prevenire SPARQL injection.
 *   **Ontologia Locale**: I tool del gruppo 10 (`inspect_local_ontology`, `inspect_local_concept`, `inspect_local_property`, `query_local_ontology`, `compare_local_with_remote`) usano [oxigraph](https://github.com/oxigraph/oxigraph) (WASM) per caricare file RDF/OWL in memoria ed eseguire SPARQL. `file_path` funziona solo per file davvero leggibili dal processo server; non trasferisce file dal client. I file vengono cachati dopo il primo caricamento; le query successive sullo stesso file non rileggono il disco. Formati supportati: `.ttl`, `.owl`, `.rdf`, `.nt`, `.jsonld`.
+*   **Context-aware core tools**: `inspect_concept`, `get_property_details` e `query_sparql` accettano ora `source="schema" | "local" | "hybrid"` dove applicabile. `hybrid` oggi e' supportato solo sui tool specializzati di concetto/proprieta; per `query_sparql` raw non e' ancora disponibile un vero grafo unificato locale+remoto.
 *   **Workflow Upload HTTP**: usa `get_upload_instructions` quando il file sta sul client e il server non puo' leggerlo. Dopo l'upload, il flusso principale consigliato e' `query_local_ontology` con `upload_id`; `query_uploaded_store` resta un percorso legacy specifico dello store temporaneo.
-*   **Open Knowledge Graphs (OKG)**: I tool del gruppo 13 chiamano `api.openknowledgegraphs.com` (REST JSON, CC0, nessuna autenticazione, timeout 10s). Le categorie tematiche vengono scaricate dinamicamente dalla root dell'API (`GET /`) al primo utilizzo e messe in cache in memoria per la durata della sessione; non è più necessario aggiornarle manualmente nel codice. Il tool `compare_coverage_with_okg` combina una chiamata OKG con una query SPARQL su schema.gov.it usando i Wikidata ID come chiave di collegamento.
+*   **Open Knowledge Graphs (OKG)**: I tool della categoria 12 chiamano `api.openknowledgegraphs.com` (REST JSON, CC0, nessuna autenticazione, timeout 10s). Le categorie tematiche vengono scaricate dinamicamente dalla root dell'API (`GET /`) al primo utilizzo e messe in cache in memoria per la durata della sessione; non è più necessario aggiornarle manualmente nel codice. Il tool `compare_coverage_with_okg` combina una chiamata OKG con una query SPARQL su schema.gov.it usando i Wikidata ID come chiave di collegamento.
+*   **Test e CI**: la CI esegue `npm run build`, `npm run test:http` e `npm run test:mcp`. I test MCP includono anche chiamate live a `api.openknowledgegraphs.com`, quindi richiedono accesso di rete verso l'esterno.
 *   **Logging**: Tutte le chiamate vengono loggate in `logs/usage_log.jsonl` per analisi e miglioramento continuo. Ogni entry include argomenti, riepilogo, `source_data_metrics` e `ai_data_metrics`: metriche quantitative dei dati ricevuti e del payload finale passato al modello, ad esempio numero di caratteri e, quando rilevabile, righe, colonne o numero di elementi.
 *   **Trasporto**: Il server supporta sia `stdio` (default, per uso locale) che HTTP/SSE (via `MCP_TRANSPORT=sse`, per uso remoto/Docker).
 

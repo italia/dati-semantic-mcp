@@ -1,0 +1,82 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix cpv: <https://w3id.org/italia/onto/CPV/> .
+@prefix clv: <https://w3id.org/italia/onto/CLV/> .
+@prefix sm: <https://w3id.org/italia/onto/SM/> .
+@prefix ex: <http://example.org/data/> .
+
+# =============================================================================
+# Esempio: Mario Rossi con le estensioni proposte vs. ontologia attuale
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# CON LE ESTENSIONI PROPOSTE (semplice e diretto)
+# -----------------------------------------------------------------------------
+
+ex:persona/mario-rossi-nuovo
+    a cpv:Person ;
+    cpv:givenName "Mario" ;
+    cpv:familyName "Rossi" ;
+    cpv:dateOfBirth "1985-03-15"^^xsd:date ;
+    cpv:hasBirthPlace <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/cities/058091-(2015-01-01)> ;
+
+    # Email DIRETTA (1 hop invece di 3)
+    cpv:emailAddress <mailto:mario.rossi@example.com> ;
+
+    # Identificativi STRUTTURATI e MULTIPLI
+    cpv:hasPersonIdentifier ex:id/rossi-cf ,
+                            ex:id/rossi-anpr .
+
+ex:id/rossi-cf
+    a cpv:PersonIdentifier ;
+    cpv:identifierType cpv:FiscalCode ;
+    cpv:identifierValue "RSSMRA85C15H501Z" .
+
+ex:id/rossi-anpr
+    a cpv:PersonIdentifier ;
+    cpv:identifierType cpv:ANPRIdentifier ;
+    cpv:identifierValue "A1B2C3D4E5" .
+
+# -----------------------------------------------------------------------------
+# SENZA ESTENSIONI - Ontologia attuale (piu' verboso)
+# -----------------------------------------------------------------------------
+
+ex:persona/mario-rossi-attuale
+    a cpv:Person ;
+    cpv:givenName "Mario" ;
+    cpv:familyName "Rossi" ;
+    cpv:dateOfBirth "1985-03-15"^^xsd:date ;
+    cpv:hasBirthPlace <https://w3id.org/italia/controlled-vocabulary/territorial-classifications/cities/058091-(2015-01-01)> ;
+
+    # Email: 3 hop obbligatori
+    sm:hasOnlineContactPoint ex:contatto/rossi-ocp ;
+
+    # Identificativo: solo UNO possibile e non tipizzato!
+    cpv:personID "RSSMRA85C15H501Z" .
+    # PROBLEMA: dove metto l'ID ANPR? cpv:personID e' FunctionalProperty
+
+ex:contatto/rossi-ocp
+    a sm:OnlineContactPoint ;
+    sm:hasEmail ex:email/rossi-email .
+
+ex:email/rossi-email
+    a sm:Email ;
+    sm:emailAddress "mario.rossi@example.com" .
+
+# -----------------------------------------------------------------------------
+# CONFRONTO STATISTICO
+# -----------------------------------------------------------------------------
+#
+# Per rappresentare 1 persona con email e 2 identificativi:
+#
+# CON ESTENSIONI:
+#   - 3 risorse (Person + 2 PersonIdentifier)
+#   - 10 triple circa
+#
+# SENZA ESTENSIONI:
+#   - 4 risorse (Person + OnlineContactPoint + Email + ???)
+#   - Impossibile rappresentare 2 identificativi tipizzati!
+#   - 12+ triple solo per email
+#
+# =============================================================================

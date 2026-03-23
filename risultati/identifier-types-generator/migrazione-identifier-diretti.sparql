@@ -1,0 +1,181 @@
+# =============================================================================
+# Query SPARQL UPDATE per la migrazione a proprieta' dirette (Proposta B)
+#
+# Generato da: genera-vocabolario-identifier-types.py
+#
+# ATTENZIONE: eseguire in ordine. Validare dopo ogni passo.
+# =============================================================================
+
+# --- Passo 1: Aggiungere clv:codiceBelfiore ai comuni ---
+# Codici coinvolti: ~10.350
+INSERT {
+  ?city <https://w3id.org/italia/onto/CLV/codiceBelfiore> ?code .
+}
+WHERE {
+  ?city a <https://w3id.org/italia/onto/CLV/City> ;
+        <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id <https://w3id.org/italia/onto/CLV/identifierType> "Codice Catastale" ;
+      <https://w3id.org/italia/onto/l0/identifier> ?code .
+}
+;
+
+# --- Passo 2: Aggiungere clv:siglaAutomobilistica alle province ---
+# Codici coinvolti: ~107
+INSERT {
+  ?prov <https://w3id.org/italia/onto/CLV/siglaAutomobilistica> ?code .
+}
+WHERE {
+  ?prov a <https://w3id.org/italia/onto/CLV/Province> ;
+        <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id <https://w3id.org/italia/onto/CLV/identifierType> "Sigla Automobilistica" ;
+      <https://w3id.org/italia/onto/l0/identifier> ?code .
+}
+;
+
+# --- Passo 3: Aggiungere clv:codiceCittaMetropolitana ---
+# Codici coinvolti: ~14
+INSERT {
+  ?prov <https://w3id.org/italia/onto/CLV/codiceCittaMetropolitana> ?code .
+}
+WHERE {
+  ?prov a <https://w3id.org/italia/onto/CLV/Province> ;
+        <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id <https://w3id.org/italia/onto/CLV/identifierType> "Codice Città Metropolitana" ;
+      <https://w3id.org/italia/onto/l0/identifier> ?code .
+}
+;
+
+# --- Passo 4: Aggiungere clv:isoAlpha2 e clv:isoAlpha3 ---
+INSERT {
+  ?country <https://w3id.org/italia/onto/CLV/isoAlpha2> ?code .
+}
+WHERE {
+  ?country a <https://w3id.org/italia/onto/CLV/Country> ;
+           <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id <https://w3id.org/italia/onto/CLV/identifierType> "ISO 3166-1 alpha-2" ;
+      <https://w3id.org/italia/onto/l0/identifier> ?code .
+}
+;
+
+INSERT {
+  ?country <https://w3id.org/italia/onto/CLV/isoAlpha3> ?code .
+}
+WHERE {
+  ?country a <https://w3id.org/italia/onto/CLV/Country> ;
+           <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id <https://w3id.org/italia/onto/CLV/identifierType> "ISO 3166-1 alpha-3" ;
+      <https://w3id.org/italia/onto/l0/identifier> ?code .
+}
+;
+
+# --- Passo 5: Query di VERIFICA (eseguire prima di eliminare) ---
+
+# 5a. Verifica Belfiore: contare comuni con proprieta' diretta
+SELECT (COUNT(?city) AS ?cities_with_belfiore) WHERE {
+  ?city a <https://w3id.org/italia/onto/CLV/City> ; <https://w3id.org/italia/onto/CLV/codiceBelfiore> ?code .
+}
+
+# 5b. Confronto: comuni con Identifier "Codice Catastale" vs clv:codiceBelfiore
+SELECT ?city ?old_code ?new_code WHERE {
+  ?city a <https://w3id.org/italia/onto/CLV/City> ;
+        <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id ;
+        <https://w3id.org/italia/onto/CLV/codiceBelfiore> ?new_code .
+  ?id <https://w3id.org/italia/onto/CLV/identifierType> "Codice Catastale" ;
+      <https://w3id.org/italia/onto/l0/identifier> ?old_code .
+  FILTER(?old_code != ?new_code)
+}
+# Se restituisce 0 righe: migrazione corretta!
+
+# --- Passo 6: Rimozione risorse Identifier ridondanti ---
+# ATTENZIONE: eseguire SOLO dopo aver validato i passi precedenti!
+
+# 6a. Rimuovi Identifier ISTAT numerici (completamente ridondanti)
+DELETE { ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id . ?id ?p ?o . }
+WHERE {
+  ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id a <https://w3id.org/italia/onto/CLV/Identifier> ;
+      <https://w3id.org/italia/onto/CLV/identifierType> "Codice ISTAT numerico" ;
+      ?p ?o .
+}
+;
+
+# 6b. Rimuovi Identifier ISTAT alfanumerici (coperti da skos:notation)
+DELETE { ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id . ?id ?p ?o . }
+WHERE {
+  ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id a <https://w3id.org/italia/onto/CLV/Identifier> ;
+      <https://w3id.org/italia/onto/CLV/identifierType> "Codice ISTAT alfanumerico" ;
+      ?p ?o .
+}
+;
+
+# 6c. Rimuovi Identifier catastali (coperti da clv:codiceBelfiore)
+DELETE { ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id . ?id ?p ?o . }
+WHERE {
+  ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id a <https://w3id.org/italia/onto/CLV/Identifier> ;
+      <https://w3id.org/italia/onto/CLV/identifierType> "Codice Catastale" ;
+      ?p ?o .
+}
+;
+
+# 6d. Rimuovi Identifier province (codice coperto da skos:notation)
+DELETE { ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id . ?id ?p ?o . }
+WHERE {
+  ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id a <https://w3id.org/italia/onto/CLV/Identifier> ;
+      <https://w3id.org/italia/onto/CLV/identifierType> "Codice Provincia Alfanumerico" ;
+      ?p ?o .
+}
+;
+
+# 6e. Rimuovi Identifier sigla auto (coperti da clv:siglaAutomobilistica)
+DELETE { ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id . ?id ?p ?o . }
+WHERE {
+  ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id a <https://w3id.org/italia/onto/CLV/Identifier> ;
+      <https://w3id.org/italia/onto/CLV/identifierType> "Sigla Automobilistica" ;
+      ?p ?o .
+}
+;
+
+# 6f. Rimuovi Identifier citta' metropolitane (coperti da clv:codiceCittaMetropolitana)
+DELETE { ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id . ?id ?p ?o . }
+WHERE {
+  ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id a <https://w3id.org/italia/onto/CLV/Identifier> ;
+      <https://w3id.org/italia/onto/CLV/identifierType> "Codice Città Metropolitana" ;
+      ?p ?o .
+}
+;
+
+# 6g. Rimuovi Identifier regione (coperti da skos:notation)
+DELETE { ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id . ?id ?p ?o . }
+WHERE {
+  ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id a <https://w3id.org/italia/onto/CLV/Identifier> ;
+      <https://w3id.org/italia/onto/CLV/identifierType> "Codice Regione" ;
+      ?p ?o .
+}
+;
+
+# 6h. Rimuovi Identifier ripartizione geografica (coperti da skos:notation)
+DELETE { ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id . ?id ?p ?o . }
+WHERE {
+  ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id a <https://w3id.org/italia/onto/CLV/Identifier> ;
+      <https://w3id.org/italia/onto/CLV/identifierType> "Identificativo della ripartizione geografica" ;
+      ?p ?o .
+}
+;
+
+# 6i. Rimuovi Identifier ISO (coperti da clv:isoAlpha2 e clv:isoAlpha3)
+DELETE { ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id . ?id ?p ?o . }
+WHERE {
+  ?entity <https://w3id.org/italia/onto/CLV/hasIdentifier> ?id .
+  ?id a <https://w3id.org/italia/onto/CLV/Identifier> ;
+      <https://w3id.org/italia/onto/CLV/identifierType> ?type ;
+      ?p ?o .
+  FILTER(?type IN ("ISO 3166-1 alpha-2", "ISO 3166-1 alpha-3"))
+}
+;
