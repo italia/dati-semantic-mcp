@@ -10,7 +10,6 @@ import { registerGroupH } from "./tools/group-h.js";
 import { registerGroupI } from "./tools/group-i.js";
 import { registerGroupJ } from "./tools/group-j.js";
 import { registerGroupK } from "./tools/group-k.js";
-import { registerGroupL } from "./tools/group-l.js";
 import { registerGroupM } from "./tools/group-m.js";
 
 /**
@@ -35,7 +34,6 @@ export function createAndConfigureServer(): McpServer {
   registerGroupI(server);
   registerGroupJ(server);
   registerGroupK(server);
-  registerGroupL(server);
   registerGroupM(server);
 
   return server;

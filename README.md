@@ -10,7 +10,7 @@ Questo server permette agli agenti AI (come Claude Code) di esplorare ontologie,
 
 ## Strumenti disponibili
 
-Il server espone **43 strumenti** organizzati in 13 categorie:
+Il server espone **43 strumenti** organizzati in 12 categorie:
 
 ### 1. Operazioni Base
 *   `query_sparql`: Esegue una query SPARQL raw contro l'endpoint remoto di `schema.gov.it`. Usalo solo se nessun tool specializzato copre gia' la domanda.
@@ -70,9 +70,21 @@ Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il
 *   `inspect_local_property`: **Deep dive su una proprietà** (locale o caricata). Espone separatamente: `assertedDomain`/`assertedRange` (dichiarati nel file), `inheritedDomain`/`inheritedRange` (da super-proprietà via `rdfs:subPropertyOf+`, con indicazione dell'antenato), `effectiveDomain`/`effectiveRange` (unione). Per super-proprietà non presenti nel file locale (es. l0:name, l0:description da ontologie importate), interroga automaticamente schema.gov.it come fallback. Ogni super-proprietà è marcata con source `local` | `remote` | `not-found`. Include nota sul limite Unicode nei nomi locali SPARQL con oxigraph.
 *   `query_local_ontology`: Esegue una query SPARQL SELECT su un'ontologia accessibile dal server o caricata prima via `POST /upload`. Usalo solo per query custom; per profili standard di concetti/proprieta usa i tool `inspect_local_*`.
 *   `compare_local_with_remote`: Confronta le classi/proprietà definite in un'ontologia accessibile dal server o via `upload_id` con quelle presenti in schema.gov.it — utile per scoprire cosa riusare o allineare.
-
-### 11. Workflow Upload HTTP
 *   `query_uploaded_store`: Esegue query SPARQL SELECT su uno store temporaneo creato via `POST /upload`. Tool legacy: per i nuovi flussi e' preferibile `query_local_ontology` con `upload_id`.
+
+### 11. Meta-Ottimizzazione
+*   `suggest_new_tools`: Analizza i log delle query RAW e suggerisce nuovi tool specializzati in base all'utilizzo reale.
+*   `analyze_usage`: Analizza i log interni per identificare pattern, errori e query frequenti.
+
+### 12. Open Knowledge Graphs (OKG)
+
+Integrazione con [api.openknowledgegraphs.com](https://api.openknowledgegraphs.com) — catalogo di oltre 1.800 ontologie, vocabolari, tassonomie e strumenti semantici con metadati da Wikidata. Tutti i dati sono CC0, nessuna autenticazione richiesta.
+
+*   `list_okg_categories`: Recupera a runtime le categorie tematiche disponibili nel catalogo OKG (le categorie sono scaricate dinamicamente da `api.openknowledgegraphs.com` e messe in cache).
+*   `search_okg_resources`: Cerca ontologie, vocabolari e tassonomie nel catalogo OKG per parola chiave e/o categoria tematica.
+*   `find_okg_alignments`: Dato un URI di schema.gov.it, trova le risorse OKG correlate: prima cerca allineamenti Wikidata già presenti nel catalogo (owl:sameAs, skos:exactMatch), poi usa il Wikidata ID come ponte verso OKG per identificare corrispondenze internazionali confermate.
+*   `find_semantic_software`: Cerca strumenti software semantici nel catalogo OKG (editor di ontologie, motori SPARQL, convertitori RDF, reasoner, ecc.).
+*   `compare_coverage_with_okg`: Gap analysis per dominio: confronta le risorse di schema.gov.it con il catalogo OKG internazionale, classificando le risorse come "coperte" (già collegate via Wikidata) o "gap" (non ancora presenti in schema.gov.it).
 
 ## Scelta Rapida Dei Tool
 
@@ -91,20 +103,6 @@ Nota: questi tool restano utili, ma su `schema.gov.it` sono spesso secondari. Il
 | Profilare una proprieta in un'ontologia locale/uploaded | `inspect_local_property` |
 | Fare una query custom su un'ontologia locale/uploaded | `query_local_ontology` |
 | Caricare un file che il server non puo' leggere direttamente | `get_upload_instructions` |
-
-### 12. Meta-Ottimizzazione
-*   `suggest_new_tools`: Analizza i log delle query RAW e suggerisce nuovi tool specializzati in base all'utilizzo reale.
-*   `analyze_usage`: Analizza i log interni per identificare pattern, errori e query frequenti.
-
-### 13. Open Knowledge Graphs (OKG)
-
-Integrazione con [api.openknowledgegraphs.com](https://api.openknowledgegraphs.com) — catalogo di oltre 1.800 ontologie, vocabolari, tassonomie e strumenti semantici con metadati da Wikidata. Tutti i dati sono CC0, nessuna autenticazione richiesta.
-
-*   `list_okg_categories`: Recupera a runtime le categorie tematiche disponibili nel catalogo OKG (le categorie sono scaricate dinamicamente da `api.openknowledgegraphs.com` e messe in cache).
-*   `search_okg_resources`: Cerca ontologie, vocabolari e tassonomie nel catalogo OKG per parola chiave e/o categoria tematica.
-*   `find_okg_alignments`: Dato un URI di schema.gov.it, trova le risorse OKG correlate: prima cerca allineamenti Wikidata già presenti nel catalogo (owl:sameAs, skos:exactMatch), poi usa il Wikidata ID come ponte verso OKG per identificare corrispondenze internazionali confermate.
-*   `find_semantic_software`: Cerca strumenti software semantici nel catalogo OKG (editor di ontologie, motori SPARQL, convertitori RDF, reasoner, ecc.).
-*   `compare_coverage_with_okg`: Gap analysis per dominio: confronta le risorse di schema.gov.it con il catalogo OKG internazionale, classificando le risorse come "coperte" (già collegate via Wikidata) o "gap" (non ancora presenti in schema.gov.it).
 
 ---
 

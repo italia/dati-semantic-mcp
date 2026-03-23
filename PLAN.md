@@ -164,12 +164,12 @@ Problema osservato: oggi alcuni agenti vanno in confusione non perché i tool ma
 ### 5.2 Consolidamento della superficie dei tool
 **Effort: Basso | Rischio: Basso | Priorità: Alta**
 
-- [ ] Spostare `resolve_territorial_uri` da Group G a Group I (dove stanno `list_municipalities`, `list_provinces`, `list_identifiers`)
-- [ ] Spostare `browse_vocabulary` da Group G a Group D (con `list_vocabularies`, `search_in_vocabulary`)
-- [ ] Unire Group L in Group K — tutti sono tool "local/uploaded ontology"
-- [ ] Deprecare `query_uploaded_store`: è un doppione quasi puro di `query_local_ontology` con `upload_id`
-- [ ] Lasciare `query_uploaded_store` come alias di compatibilità per una release, ma rimuoverlo dalla documentazione principale e dagli esempi consigliati
-- [ ] Rinominare Group G in "Properties & Instances" dopo i trasferimenti
+- [x] Spostare `resolve_territorial_uri` da Group G a Group I (dove stanno `list_municipalities`, `list_provinces`, `list_identifiers`)
+- [x] Spostare `browse_vocabulary` da Group G a Group D (con `list_vocabularies`, `search_in_vocabulary`)
+- [x] Unire Group L in Group K — tutti sono tool "local/uploaded ontology"
+- [x] Deprecare `query_uploaded_store`: è un doppione quasi puro di `query_local_ontology` con `upload_id`
+- [x] Lasciare `query_uploaded_store` come alias di compatibilità per una release, ma rimuoverlo dalla documentazione principale e dagli esempi consigliati
+- [x] Rinominare Group G in "Properties & Instances" dopo i trasferimenti
 
 ### 5.3 Unificazione del motore semantico locale/remoto
 **Effort: Medio | Impatto: Alto | Priorità: Alta**
