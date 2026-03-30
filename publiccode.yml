@@ -6,6 +6,8 @@ platforms:
   - linux
   - windows
   - ios
+organisation:
+  uri: urn:x-italian-pa:pcm
 developmentStatus: beta
 softwareType: addon
 description:
