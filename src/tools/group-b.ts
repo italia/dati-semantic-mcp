@@ -90,7 +90,12 @@ server.registerTool(
 
 **Note:** Checks owl:Class, owl:ObjectProperty, owl:DatatypeProperty, and skos:Concept.
 Label lookup spans both the default graph and all named graphs to avoid false positives caused by
-label triples residing in a named graph different from where the type assertion was found.`,
+label triples residing in a named graph different from where the type assertion was found.
+
+**False positive filtering:** Resources that have only a bare type declaration (a owl:Class with no other
+properties) are automatically excluded. These are typically import stubs — classes or properties referenced
+from another module but never developed locally. Only resources with at least one non-type triple are flagged,
+ensuring the report covers entities that are being actively developed but are missing editorial metadata.`,
     inputSchema: {
       limit: z.number().optional().default(50),
       ontologyUri: z.string().optional().describe(
@@ -125,6 +130,7 @@ label triples residing in a named graph different from where the type assertion 
           UNION
           { GRAPH ?g { ?s skos:prefLabel ?label } }
         }
+        FILTER EXISTS { ?s ?p2 ?o2 . FILTER(?p2 != rdf:type) }
         BIND("Missing Label" AS ?issue)
       }
       LIMIT ${limit}
