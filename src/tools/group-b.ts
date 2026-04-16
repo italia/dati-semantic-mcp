@@ -76,13 +76,27 @@ server.registerTool(
 
 **Args:**
 - limit: Maximum results to return (default: 50)
+- ontologyUri: (optional) Restrict check to resources whose URI starts with this ontology namespace.
+  Use this to avoid false positives from resources imported from other ontologies (e.g. core ontology classes
+  referenced as range/domain in the target ontology). Mirrors the URI prefix heuristic used by explore_ontology.
 
 **Returns:**
-- List of resources missing rdfs:label or skos:prefLabel
+- List of resources missing rdfs:label or skos:prefLabel (checked in both default graph and all named graphs)
 
-**Note:** Checks owl:Class, owl:ObjectProperty, owl:DatatypeProperty, and skos:Concept.`,
+**When to use ontologyUri:**
+- Pass the ontology URI (from list_ontologies) when checking a specific ontology to exclude imported resources.
+  Resources imported from another ontology (e.g. a core class used as range) are NOT a quality issue of the
+  importing ontology — they are defined, with their labels, in the originating ontology.
+
+**Note:** Checks owl:Class, owl:ObjectProperty, owl:DatatypeProperty, and skos:Concept.
+Label lookup spans both the default graph and all named graphs to avoid false positives caused by
+label triples residing in a named graph different from where the type assertion was found.`,
     inputSchema: {
       limit: z.number().optional().default(50),
+      ontologyUri: z.string().optional().describe(
+        "Restrict check to resources whose URI starts with this ontology namespace " +
+        "(use the URI from list_ontologies). Excludes resources imported from other ontologies."
+      ),
     },
     annotations: {
       readOnlyHint: true,
@@ -91,19 +105,31 @@ server.registerTool(
       openWorldHint: true,
     },
   },
-  async ({ limit }) => {
+  async ({ limit, ontologyUri }) => {
+    const nsFilter = ontologyUri
+      ? `FILTER(STRSTARTS(STR(?s), "${sanitizeSparqlUri(ontologyUri)}"))`
+      : "";
     const query = `
       SELECT ?s ?type ?issue
       WHERE {
         VALUES ?type { owl:Class owl:ObjectProperty owl:DatatypeProperty skos:Concept }
         ?s a ?type .
-        FILTER NOT EXISTS { ?s rdfs:label ?label }
-        FILTER NOT EXISTS { ?s skos:prefLabel ?label }
+        ${nsFilter}
+        FILTER NOT EXISTS {
+          { ?s rdfs:label ?label }
+          UNION
+          { GRAPH ?g { ?s rdfs:label ?label } }
+        }
+        FILTER NOT EXISTS {
+          { ?s skos:prefLabel ?label }
+          UNION
+          { GRAPH ?g { ?s skos:prefLabel ?label } }
+        }
         BIND("Missing Label" AS ?issue)
       }
       LIMIT ${limit}
     `;
-    return executeSparqlTool("check_quality", { limit }, query);
+    return executeSparqlTool("check_quality", { limit, ontologyUri }, query);
   }
 );
 
