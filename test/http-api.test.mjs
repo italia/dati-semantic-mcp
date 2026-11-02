@@ -159,3 +159,74 @@ test("GET /sparql/{id} without query returns 400", async () => {
   const body = await res.json();
   assert.match(body.error, /Missing SPARQL query/i);
 });
+
+// ---------------------------------------------------------------------------
+// Unbounded request bodies: both routes used to read a body with no byte gate.
+// The /mcp body was buffered whole and answered from memory (above V8's
+// 536,870,888-character string limit the process exited on
+// ERR_STRING_TOO_LONG); the /sparql/{id} body was bounded but its rejection was
+// uncaught, so a body over 1 MB exited the process. These tests pin the 413 and
+// the fact that the server answers the next request.
+// ---------------------------------------------------------------------------
+
+test("POST /mcp rejects a body over 16 MB with 413 and stays up", async () => {
+  const oversized = "x".repeat(17 * 1024 * 1024);
+  const res = await fetch(`${BASE_URL}/mcp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+    },
+    body: oversized,
+  });
+  assert.equal(res.status, 413);
+  const body = await res.json();
+  assert.match(body.error, /Request body exceeds 16777216 bytes/i);
+
+  const health = await fetch(`${BASE_URL}/health`);
+  assert.equal(health.status, 200);
+});
+
+test("POST /mcp still accepts an initialize request under the cap", async () => {
+  const res = await fetch(`${BASE_URL}/mcp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "http-api-test", version: "1" },
+      },
+    }),
+  });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("mcp-session-id") ?? "", /^[0-9a-f-]{36}$/i);
+});
+
+test("POST /sparql/{id} rejects a query body over 1 MB with 413 and stays up", async () => {
+  const uploadRes = await fetch(`${BASE_URL}/upload`, {
+    method: "POST",
+    headers: { "Content-Type": "text/turtle" },
+    body: TEST_TTL,
+  });
+  assert.equal(uploadRes.status, 200);
+  const uploaded = await uploadRes.json();
+
+  const res = await fetch(`${BASE_URL}/sparql/${uploaded.id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/sparql-query" },
+    body: "y".repeat(1_000_001),
+  });
+  assert.equal(res.status, 413);
+  const body = await res.json();
+  assert.match(body.error, /Query body too large\. Maximum size is 1000000 bytes/i);
+
+  const health = await fetch(`${BASE_URL}/health`);
+  assert.equal(health.status, 200);
+});
