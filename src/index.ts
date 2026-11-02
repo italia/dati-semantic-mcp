@@ -13,6 +13,7 @@ import { createAndConfigureServer } from "./server.js";
 import {
   uploadedStores,
   MAX_UPLOAD_SIZE,
+  BodyTooLargeError,
   readRawBodyWithLimit,
   evictExpiredUploads,
 } from "./upload.js";
@@ -20,19 +21,16 @@ import { GRAPHOL_FORMAT, loadOntologyContent } from "./local-ontology.js";
 
 const LOG_DIR = join(process.cwd(), "logs");
 
-/** Parse JSON body from an IncomingMessage */
-function parseBody(req: IncomingMessage): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => {
-      const raw = Buffer.concat(chunks).toString();
-      if (!raw) { resolve(undefined); return; }
-      try { resolve(JSON.parse(raw)); }
-      catch (e) { reject(e); }
-    });
-    req.on('error', reject);
-  });
+/** 16 MB hard limit for the MCP JSON-RPC body. MCP messages are small; the
+ *  inline `content` parameter of inspect_local_ontology is the largest
+ *  legitimate body and the README points files above 1 MB at POST /upload. */
+const MAX_BODY_SIZE = 16 * 1024 * 1024;
+
+/** Parse JSON body from an IncomingMessage, refusing a body over maxBytes. */
+async function parseBody(req: IncomingMessage, maxBytes = MAX_BODY_SIZE): Promise<unknown> {
+  const raw = (await readRawBodyWithLimit(req, maxBytes)).toString("utf-8");
+  if (!raw) return undefined;
+  return JSON.parse(raw);
 }
 
 async function main() {
@@ -75,8 +73,13 @@ async function main() {
         try {
           bodyBuf = await readRawBodyWithLimit(req, MAX_UPLOAD_SIZE);
         } catch (e) {
-          res.writeHead(413, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: `File too large. Maximum size is ${MAX_UPLOAD_SIZE} bytes (1 MB).` }));
+          const tooLarge = e instanceof BodyTooLargeError;
+          res.writeHead(tooLarge ? 413 : 400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            error: tooLarge
+              ? `File too large. Maximum size is ${MAX_UPLOAD_SIZE} bytes (1 MB).`
+              : `Failed to read request body: ${String(e)}`,
+          }));
           return;
         }
         const contentType = req.headers['content-type'] ?? '';
@@ -133,7 +136,22 @@ async function main() {
         if (req.method === 'GET') {
           sparqlQuery = url.searchParams.get('query') ?? undefined;
         } else if (req.method === 'POST') {
-          const bodyBuf = await readRawBodyWithLimit(req, MAX_UPLOAD_SIZE);
+          let bodyBuf: Buffer;
+          try {
+            bodyBuf = await readRawBodyWithLimit(req, MAX_UPLOAD_SIZE);
+          } catch (e) {
+            // This read used to sit outside any try: its rejection escaped the
+            // async request listener as an unhandled rejection and exited the
+            // process on the first query body over MAX_UPLOAD_SIZE.
+            const tooLarge = e instanceof BodyTooLargeError;
+            res.writeHead(tooLarge ? 413 : 400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              error: tooLarge
+                ? `Query body too large. Maximum size is ${MAX_UPLOAD_SIZE} bytes (1 MB).`
+                : `Failed to read request body: ${String(e)}`,
+            }));
+            return;
+          }
           const body = bodyBuf.toString('utf-8');
           const ct = req.headers['content-type'] ?? '';
           if (ct.includes('application/sparql-query')) {
@@ -241,8 +259,13 @@ async function main() {
         } catch (error) {
           console.error("[MCP] Request error:", error);
           if (!res.headersSent) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: String(error) }));
+            if (error instanceof BodyTooLargeError) {
+              res.writeHead(413, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: `Request body exceeds ${MAX_BODY_SIZE} bytes (16 MB).` }));
+            } else {
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: String(error) }));
+            }
           }
         }
         return;
